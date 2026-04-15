@@ -1,0 +1,59 @@
+{
+  "app_id": "microsoft-ads",
+  "version": "1.0.0",
+  "capabilities": [],
+  "tools": [
+    {
+      "name": "tool_msads_chat",
+      "description": "Microsoft Ads — connect account, manage campaigns, ad groups, RSA ads, keywords, performance reports, keyword research via AdInsight, budget monitoring, AI performance analysis.",
+      "scopes": ["*"],
+      "parameters": {
+        "message": {"type": "string", "required": false},
+        "kwargs":  {"type": "string", "required": true}
+      }
+    },
+    {
+      "name": "skeleton_refresh_msads",
+      "description": "Background refresh: today's Microsoft Ads metrics, campaign list, budget alerts.",
+      "scopes": [],
+      "parameters": {
+        "kwargs": {"type": "string", "required": true}
+      }
+    },
+    {
+      "name": "skeleton_alert_msads",
+      "description": "Proactive alert: notify user if any campaign budget is critically low.",
+      "scopes": [],
+      "parameters": {
+        "kwargs": {"type": "string", "required": true}
+      }
+    },
+    {
+      "name": "__panel__account_dashboard",
+      "description": "Panel: Microsoft Ads account overview and campaigns list.",
+      "scopes": [],
+      "parameters": {
+        "params": {"type": "string", "required": true}
+      }
+    },
+    {
+      "name": "__panel__campaign_detail",
+      "description": "Panel: Campaign detail with ad groups, ads, and performance.",
+      "scopes": [],
+      "parameters": {
+        "params": {"type": "string", "required": true}
+      }
+    },
+    {
+      "name": "__panel__reports",
+      "description": "Panel: Performance reports and keyword research.",
+      "scopes": [],
+      "parameters": {
+        "params": {"type": "string", "required": true}
+      }
+    }
+  ],
+  "signals": [],
+  "schedules": [],
+  "required_scopes": ["*"]
+}
