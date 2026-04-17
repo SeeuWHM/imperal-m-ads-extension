@@ -1,126 +1,136 @@
-"""Microsoft Ads · Left panel: account dashboard and campaigns list."""
+"""Microsoft Ads · Left panel: account dashboard."""
 from __future__ import annotations
 
 from imperal_sdk import ui
 
 from app import ext
-from msads_providers.helpers import _all_accounts, COLLECTION
+from msads_providers.helpers import _all_accounts
+from panels_ui import (
+    campaign_badge, fmt_currency, fmt_pct, fmt_number,
+    not_connected_view, needs_setup_view, error_view,
+)
 
 SECTION = "msads_account"
 
 
 @ext.panel("account_dashboard", slot="left", title="Microsoft Ads", icon="TrendingUp")
-async def panel_account_dashboard(ctx, **kwargs):
-    """Account KPIs, budget progress, and campaigns list from skeleton cache."""
+async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
+    """Account KPIs, budget bar, and campaigns list — served from skeleton cache."""
     data = await ctx.skeleton.get(SECTION) or {}
 
-    # ── Not connected ──────────────────────────────────────────────────── #
+    # ── Connection states ─────────────────────────────────────────────── #
     if not data.get("connected"):
         accounts = await _all_accounts(ctx)
         if not accounts:
-            return ui.Stack([
-                ui.Empty(
-                    message="No Microsoft Ads account connected.",
-                    action=ui.Send("Connect Microsoft Ads"),
-                ),
-            ])
+            return not_connected_view()
         if any(a.get("_needs_setup") for a in accounts):
-            return ui.Stack([
-                ui.Alert(type="warning",
-                         message="Authorised! Select your ad account to continue."),
-                ui.Button("Setup account", variant="primary",
-                          on_click=ui.Send("Setup my Microsoft Ads account")),
-            ])
-        return ui.Stack([
-            ui.Alert(type="error", message="Connection error. Check your account."),
-            ui.Button("Reconnect", variant="primary",
-                      on_click=ui.Send("Reconnect Microsoft Ads")),
-        ])
+            return needs_setup_view()
+        return error_view("Connection error. Try reconnecting.")
 
-    # ── Data ───────────────────────────────────────────────────────────── #
+    # ── Extract skeleton data ─────────────────────────────────────────── #
     today     = data.get("today", {})
     campaigns = data.get("campaigns", [])
     alerts    = data.get("alerts", [])
     currency  = data.get("currency", "$")
+    n_active  = data.get("campaigns_active", 0)
+    n_paused  = data.get("campaigns_paused", 0)
 
-    budget_total = sum(float(c.get("daily_budget", c.get("budget_amount", 0)))
-                       for c in campaigns)
-    spend        = float(today.get("spend", 0))
-    pct_spent    = round(spend / budget_total * 100, 1) if budget_total else 0
-    bar_color    = "red" if pct_spent >= 90 else "orange" if pct_spent >= 70 else "green"
+    spend  = float(today.get("spend", 0) or 0)
+    clicks = int(  today.get("clicks", 0) or 0)
+    ctr    = float(today.get("ctr", 0) or 0)
+    cpc    = float(today.get("avg_cpc", 0) or 0)
 
-    # ── Build panel ────────────────────────────────────────────────────── #
-    children = [
-        # Header
-        ui.Header(
-            title=data.get("account_name", "Microsoft Ads"),
-            subtitle=f"ID: {data.get('account_id', '')}",
-        ),
+    budget_total = sum(
+        float(c.get("daily_budget", c.get("budget_amount", 0)) or 0)
+        for c in campaigns
+    )
+    pct_spent = round(spend / budget_total * 100, 1) if budget_total else 0
 
-        # Budget bar
-        ui.Stack([
-            ui.Text(
-                f"Today: {currency}{spend:.2f} / {currency}{budget_total:.2f}",
-                weight="medium",
-            ),
-            ui.Progress(value=int(pct_spent), color=bar_color),
-        ], gap=1),
+    # ── Budget progress bar ───────────────────────────────────────────── #
+    budget_bar = ui.Progress(
+        value=min(int(pct_spent), 100),
+        label=f"{fmt_currency(spend, currency)} / {fmt_currency(budget_total, currency)} today · {pct_spent:.0f}%",
+    )
 
-        # KPIs grid
-        ui.Grid([
-            ui.Stat(label="Clicks",      value=str(today.get("clicks", 0))),
-            ui.Stat(label="Impressions", value=str(today.get("impressions", 0))),
-            ui.Stat(label="CTR",         value=f"{float(today.get('ctr', 0)):.1f}%"),
-            ui.Stat(label="Avg CPC",     value=f"{currency}{float(today.get('avg_cpc', 0)):.2f}"),
-        ], columns=2),
+    # ── Budget alerts (max 2) ─────────────────────────────────────────── #
+    alert_nodes = [
+        ui.Alert(
+            type="error" if a.get("type") == "budget_critical" else "warn",
+            message=f"{a.get('campaign_name', 'Campaign')}: {a.get('pct_used', 0):.0f}% budget used",
+        )
+        for a in alerts[:2]
     ]
 
-    # Budget alerts
-    for a in alerts:
-        children.append(ui.Alert(
-            type="error" if a["type"] == "budget_critical" else "warning",
-            message=f"{a['campaign_name']}: {a['pct_used']:.0f}% budget used",
+    # ── Today's KPI stats ─────────────────────────────────────────────── #
+    kpi_stats = ui.Stats(columns=2, children=[
+        ui.Stat(label="Spend Today",  value=fmt_currency(spend, currency),
+                icon="DollarSign",   color="blue"),
+        ui.Stat(label="Clicks",       value=fmt_number(clicks),
+                icon="MousePointer", color="green"),
+        ui.Stat(label="CTR",          value=fmt_pct(ctr),
+                icon="Percent"),
+        ui.Stat(label="Avg CPC",      value=fmt_currency(cpc, currency),
+                icon="Tag"),
+    ])
+
+    # ── Campaigns list ────────────────────────────────────────────────── #
+    camp_items = []
+    for c in campaigns:
+        cid       = str(c.get("id", c.get("campaign_id", "")))
+        c_spend   = float(c.get("today_spend", c.get("spend", 0)) or 0)
+        c_clicks  = int(c.get("clicks", 0) or 0)
+        c_status  = c.get("status", "")
+        is_active = c_status == "Active"
+
+        camp_items.append(ui.ListItem(
+            id=cid,
+            title=c.get("name", "Campaign"),
+            subtitle=f"{fmt_currency(c_spend, currency)} · {fmt_number(c_clicks)} clicks",
+            badge=campaign_badge(c_status),
+            icon="Play" if is_active else "Pause",
+            on_click=ui.Call("__panel__campaign_detail", campaign_id=cid),
+            actions=[{
+                "icon":     "Pause" if is_active else "Play",
+                "label":    "Pause" if is_active else "Resume",
+                "on_click": ui.Call(
+                    "pause_campaign" if is_active else "resume_campaign",
+                    campaign_id=cid,
+                ),
+            }],
         ))
 
-    children.append(ui.Divider())
+    camp_divider = ui.Divider(
+        label=f"CAMPAIGNS  ·  {n_active} active  {n_paused} paused"
+              if (n_active or n_paused) else f"CAMPAIGNS ({len(campaigns)})"
+    )
 
-    # Campaigns list
-    children.append(ui.List(
-        items=[
-            ui.ListItem(
-                id=str(c.get("id", c.get("campaign_id", ""))),
-                title=c.get("name", ""),
-                subtitle=(
-                    f"{currency}{float(c.get('today_spend', c.get('spend', 0))):.2f}"
-                    f" · {c.get('clicks', 0)} clicks"
-                ),
-                icon="Play" if c.get("status") == "Active" else "Pause",
-                actions=[
-                    {
-                        "icon": "Pause" if c.get("status") == "Active" else "Play",
-                        "on_click": ui.Call(
-                            "pause_campaign" if c.get("status") == "Active" else "resume_campaign",
-                            campaign_id=str(c.get("id", c.get("campaign_id", ""))),
-                        ),
-                    },
-                ],
-                on_click=ui.Call(
-                    "get_campaign",
-                    campaign_id=str(c.get("id", c.get("campaign_id", ""))),
-                ),
-            )
-            for c in campaigns
-        ],
-        searchable=True,
-        page_size=15,
-    ))
+    camp_list = (
+        ui.List(items=camp_items, searchable=True, page_size=10)
+        if camp_items else
+        ui.Empty(
+            message="No campaigns yet.",
+            icon="BarChart2",
+            action=ui.Send("Create a new Microsoft Ads campaign"),
+        )
+    )
 
-    # Action bar
-    children.append(ui.Stack([
-        ui.Button("+ Campaign", variant="primary",
+    # ── Sticky footer ─────────────────────────────────────────────────── #
+    footer = ui.Stack([
+        ui.Button("+ Campaign", variant="primary", icon="Plus",
                   on_click=ui.Send("Create a new Microsoft Ads campaign")),
-        ui.Button("Reports", variant="ghost",
-                  on_click=ui.Call("get_budget_status")),
-    ], direction="horizontal", gap=2, sticky=True))
+        ui.Button("", icon="RefreshCw", variant="ghost", size="sm",
+                  on_click=ui.Call("__panel__account_dashboard")),
+    ], direction="h", gap=2, sticky=True)
 
-    return ui.Stack(children)
+    return ui.Stack([
+        ui.Header(
+            text=data.get("account_name", "Microsoft Ads"),
+            subtitle=f"ID: {data.get('account_id', '')}",
+        ),
+        budget_bar,
+        *alert_nodes,
+        kpi_stats,
+        camp_divider,
+        camp_list,
+        footer,
+    ])

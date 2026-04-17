@@ -10,7 +10,7 @@ sys.path.insert(0, _dir)
 for _m in [k for k in sys.modules if k in (
     "app", "handlers", "handlers_campaigns", "handlers_ads",
     "handlers_keywords", "handlers_reports", "skeleton",
-    "panels", "panels_campaigns", "panels_reports",
+    "panels", "panels_campaign", "panels_ui",
     "msads_providers",
 )]:
     del sys.modules[_m]
@@ -25,5 +25,4 @@ import handlers_keywords           # noqa: F401 — keywords + research
 import handlers_reports            # noqa: F401 — performance + AI analysis
 import skeleton                    # noqa: F401 — background refresh + alerts
 import panels                      # noqa: F401 — left panel: account dashboard
-import panels_campaigns            # noqa: F401 — right panel: campaign detail
-import panels_reports              # noqa: F401 — right panel: reports + research
+import panels_campaign             # noqa: F401 — right panel: campaign detail + today's chart
