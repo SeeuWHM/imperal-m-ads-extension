@@ -43,14 +43,6 @@
       "parameters": {
         "params": {"type": "string", "required": true}
       }
-    },
-    {
-      "name": "__panel__reports",
-      "description": "Panel: Performance reports and keyword research.",
-      "scopes": [],
-      "parameters": {
-        "params": {"type": "string", "required": true}
-      }
     }
   ],
   "signals": [],
