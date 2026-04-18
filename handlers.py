@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 
 from pydantic import BaseModel, Field
 
+from imperal_sdk import ui
 from app import chat, ActionResult, _get_ready_account, _no_account_error
 from msads_providers.helpers import (
     _all_accounts,
@@ -39,8 +40,7 @@ class AccountParams(BaseModel):
 
 @chat.function(
     "connect",
-    action_type="write",
-    event="account_connected",
+    action_type="read",
     description=(
         "Connect a Microsoft Ads account via OAuth. "
         "Checks if already connected first. Returns an authorisation URL."
@@ -87,11 +87,17 @@ async def fn_connect(ctx) -> ActionResult:
         "state":         _oauth_state(ctx),
     })
     return ActionResult.success(
-        data={
-            "auth_url":    url,
-            "instruction": "Open the link and sign in with your Microsoft account to grant access.",
-        },
-        summary="Microsoft Ads OAuth URL ready — open it to authorise access.",
+        data={"auth_url": url},
+        summary="Click the button below to connect your Microsoft Ads account.",
+        ui=ui.Stack([
+            ui.Alert(type="info", message="You'll be redirected to Microsoft to sign in and grant access."),
+            ui.Button(
+                "Connect Microsoft Ads",
+                icon="ExternalLink",
+                variant="primary",
+                on_click=ui.Open(url),
+            ),
+        ]),
     )
 
 
