@@ -47,9 +47,11 @@ async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
     pct_spent = round(spend / budget_total * 100, 1) if budget_total else 0
 
     # ── Budget progress bar ───────────────────────────────────────────── #
+    _budget_color = "red" if pct_spent >= 90 else "yellow" if pct_spent >= 70 else "green"
     budget_bar = ui.Progress(
         value=min(int(pct_spent), 100),
         label=f"{fmt_currency(spend, currency)} / {fmt_currency(budget_total, currency)} today · {pct_spent:.0f}%",
+        color=_budget_color,
     )
 
     # ── Budget alerts (max 2) ─────────────────────────────────────────── #

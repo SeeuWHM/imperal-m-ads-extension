@@ -40,6 +40,7 @@ class AccountParams(BaseModel):
 @chat.function(
     "connect",
     action_type="write",
+    event="account_connected",
     description=(
         "Connect a Microsoft Ads account via OAuth. "
         "Checks if already connected first. Returns an authorisation URL."
@@ -185,14 +186,17 @@ async def fn_setup_account(ctx, params: SetupAccountParams) -> ActionResult:
             retryable=False,
         )
 
-    await ctx.store.update(COLLECTION, pending["doc_id"], {
-        **{k: v for k, v in pending.items() if k != "doc_id"},
-        "customer_id":  str(target["customer_id"]),
-        "account_id":   str(target["account_id"]),
-        "account_name": target["account_name"],
-        "currency":     target.get("currency", "USD"),
-        "_needs_setup": False,
-    })
+    try:
+        await ctx.store.update(COLLECTION, pending["doc_id"], {
+            **{k: v for k, v in pending.items() if k != "doc_id"},
+            "customer_id":  str(target["customer_id"]),
+            "account_id":   str(target["account_id"]),
+            "account_name": target["account_name"],
+            "currency":     target.get("currency", "USD"),
+            "_needs_setup": False,
+        })
+    except Exception as e:
+        return ActionResult.error(f"Failed to save account: {str(e)[:120]}", retryable=False)
     return ActionResult.success(
         data={
             "account_id":          target["account_id"],

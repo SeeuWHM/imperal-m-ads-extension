@@ -1,7 +1,7 @@
 {
   "app_id": "microsoft-ads",
   "version": "1.0.0",
-  "capabilities": [],
+  "capabilities": ["store:read", "store:write", "notify:push", "ai:complete"],
   "tools": [
     {
       "name": "tool_msads_chat",
@@ -47,5 +47,5 @@
   ],
   "signals": [],
   "schedules": [],
-  "required_scopes": ["*"]
+  "required_scopes": ["store:read", "store:write", "notify:push", "ai:complete"]
 }

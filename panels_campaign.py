@@ -41,10 +41,9 @@ async def panel_campaign_detail(
         )
     except Exception as exc:
         return ui.Stack([
-            ui.Error(
-                message=str(exc)[:200],
-                retry=ui.Call("__panel__campaign_detail", campaign_id=campaign_id),
-            ),
+            ui.Alert(type="error", message=str(exc)[:200]),
+            ui.Button("Retry", icon="RefreshCw", variant="secondary",
+                      on_click=ui.Call("__panel__campaign_detail", campaign_id=campaign_id)),
         ])
 
     skel      = skel or {}
