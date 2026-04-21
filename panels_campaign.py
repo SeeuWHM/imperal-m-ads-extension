@@ -31,7 +31,7 @@ async def panel_campaign_detail(
 
     acc, err = await _get_ready_account(ctx)
     if err:
-        return ui.Stack([ui.Alert(type="error", message=err.message)])
+        return ui.Stack([ui.Alert(type="error", message=err.error or err.summary)])
 
     # ── Parallel fetch: campaign details + skeleton ───────────────────── #
     try:

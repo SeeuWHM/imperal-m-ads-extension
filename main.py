@@ -11,7 +11,7 @@ for _m in [k for k in sys.modules if k in (
     "app", "handlers", "handlers_campaigns", "handlers_ads",
     "handlers_keywords", "handlers_reports", "skeleton",
     "panels", "panels_campaign", "panels_ui",
-    "msads_providers",
+    "msads_providers", "providers",
 )]:
     del sys.modules[_m]
 

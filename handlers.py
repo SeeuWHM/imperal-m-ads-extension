@@ -27,7 +27,8 @@ from msads_providers.msads_client import list_customers_for_token
 class SetupAccountParams(BaseModel):
     """Select a Microsoft Ads account after OAuth authorisation."""
     account_id: str = Field(
-        description="Microsoft Ads Account ID to activate (numeric, e.g. 187176890)"
+        default="",
+        description="Microsoft Ads Account ID to activate (numeric, e.g. 187176890). Omit to list all available accounts.",
     )
 
 

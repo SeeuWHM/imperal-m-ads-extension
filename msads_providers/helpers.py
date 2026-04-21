@@ -10,8 +10,8 @@ from imperal_sdk import Context
 
 # ─── OAuth constants ──────────────────────────────────────────────────── #
 
-MS_ADS_AUTH_URL     = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
-MS_ADS_TOKEN_URL    = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+MS_ADS_AUTH_URL     = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
+MS_ADS_TOKEN_URL    = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
 MS_ADS_SCOPE        = "https://ads.microsoft.com/msads.manage offline_access"
 
 MS_ADS_CLIENT_ID     = os.getenv("MS_ADS_CLIENT_ID",     "")
