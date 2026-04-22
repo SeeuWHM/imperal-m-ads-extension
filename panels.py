@@ -10,6 +10,7 @@ from panels_ui import (
     campaign_badge, fmt_currency, fmt_pct, fmt_number,
     not_connected_view, error_view,
 )
+from skeleton import skeleton_refresh
 
 SECTION = "msads_account"
 
@@ -152,19 +153,29 @@ async def panel_account_dashboard(
                 ),
             ])
 
-        # Account is set up but skeleton not populated yet — show loading state
+        # Account set up but skeleton missing — force-refresh skeleton now
         ready = next((a for a in accounts if a.get("customer_id") and not a.get("_needs_setup")), None)
         if ready:
-            return ui.Stack([
-                ui.Header(
-                    text=ready.get("account_name", "Microsoft Ads"),
-                    subtitle=f"ID: {ready.get('account_id', '')}",
-                ),
-                ui.Alert(type="info", message="Loading your campaigns data…"),
-                ui.Button("", icon="RefreshCw", variant="primary", size="sm",
-                          on_click=ui.Call("__panel__account_dashboard")),
-            ])
-        return error_view("Connection error. Try reconnecting.", ctx)
+            try:
+                fresh = await skeleton_refresh(ctx)
+                data = (fresh or {}).get("response", {})
+            except Exception:
+                data = {}
+            if data.get("connected"):
+                # Fall through to dashboard rendering below
+                pass
+            else:
+                return ui.Stack([
+                    ui.Header(
+                        text=ready.get("account_name", "Microsoft Ads"),
+                        subtitle=f"ID: {ready.get('account_id', '')}",
+                    ),
+                    ui.Alert(type="warn", message="Could not load campaigns. Microsoft Ads API may be slow."),
+                    ui.Button("", icon="RefreshCw", variant="ghost", size="sm",
+                              on_click=ui.Call("__panel__account_dashboard")),
+                ])
+        else:
+            return error_view("Connection error. Try reconnecting.", ctx)
 
     # ── Connected: extract skeleton data ──────────────────────────────── #
     today     = data.get("today", {})
