@@ -5,9 +5,10 @@ from imperal_sdk import ui
 
 from app import ext
 from msads_providers.helpers import _all_accounts, COLLECTION
+from msads_providers.msads_client import list_customers_for_token
 from panels_ui import (
     campaign_badge, fmt_currency, fmt_pct, fmt_number,
-    not_connected_view, needs_setup_view, error_view,
+    not_connected_view, error_view,
 )
 
 SECTION = "msads_account"
@@ -24,9 +25,7 @@ async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
         if not accounts:
             return not_connected_view(ctx)
         if any(a.get("_needs_setup") for a in accounts):
-            pending = next((a for a in accounts if a.get("_needs_setup")), {})
-            display_name = pending.get("display_name", "")
-            return needs_setup_view(display_name)
+            return await _auto_setup_view(ctx, accounts)
         return error_view("Connection error. Try reconnecting.", ctx)
 
     # ── Extract skeleton data ─────────────────────────────────────────── #
@@ -137,6 +136,125 @@ async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
         camp_divider,
         camp_list,
         footer,
+    ])
+
+
+async def _auto_setup_view(ctx, accounts: list) -> ui.UINode:
+    """Called when _needs_setup is True. Fetches MS Ads accounts and auto-activates."""
+    pending = next((a for a in accounts if a.get("_needs_setup")), {})
+    display_name = pending.get("display_name", "")
+    doc_id = pending.get("doc_id", "")
+
+    try:
+        customers = await list_customers_for_token(ctx, pending.get("access_token", ""))
+    except Exception:
+        customers = []
+
+    if not customers:
+        return ui.Stack([
+            ui.Header(
+                text=display_name or "Microsoft Ads",
+                subtitle="No ad accounts found",
+            ),
+            ui.Alert(
+                type="warn",
+                message="No Microsoft Advertising accounts found for this Microsoft account.",
+            ),
+            ui.Text(
+                "Make sure you sign in with a Microsoft account that has access to Microsoft Advertising.",
+                variant="caption",
+            ),
+            ui.Button(
+                "Try a different account",
+                variant="primary",
+                full_width=True,
+                icon="RefreshCw",
+                on_click=ui.Call("__panel__force_disconnect"),
+            ),
+        ])
+
+    if len(customers) == 1:
+        target = customers[0]
+        try:
+            await ctx.store.update(COLLECTION, doc_id, {
+                **{k: v for k, v in pending.items() if k != "doc_id"},
+                "customer_id":  str(target["customer_id"]),
+                "account_id":   str(target["account_id"]),
+                "account_name": target["account_name"],
+                "currency":     target.get("currency", "USD"),
+                "_needs_setup": False,
+            })
+        except Exception:
+            pass
+        return ui.Stack([
+            ui.Alert(type="success", message=f"Connected: {target['account_name']} (ID: {target['account_id']})"),
+            ui.Button("", icon="RefreshCw", variant="primary", size="sm",
+                      on_click=ui.Call("__panel__account_dashboard")),
+        ])
+
+    # Multiple accounts — show selection list
+    return ui.Stack([
+        ui.Header(
+            text=display_name or "Select account",
+            subtitle=f"{len(customers)} Microsoft Ads accounts available",
+        ),
+        ui.List(items=[
+            ui.ListItem(
+                id=str(c["account_id"]),
+                title=c["account_name"],
+                subtitle=f"ID: {c['account_id']} · {c.get('currency', 'USD')}",
+                icon="TrendingUp",
+                on_click=ui.Call(
+                    "__panel__activate_account",
+                    ms_account_id=str(c["account_id"]),
+                    doc_id=doc_id,
+                ),
+            )
+            for c in customers
+        ]),
+        ui.Divider(),
+        ui.Button(
+            "Wrong account? Disconnect",
+            variant="ghost",
+            full_width=True,
+            on_click=ui.Call("__panel__force_disconnect"),
+        ),
+    ])
+
+
+@ext.panel("activate_account", slot="left", title="Microsoft Ads", icon="TrendingUp")
+async def panel_activate_account(ctx, ms_account_id: str = "", doc_id: str = "", **kwargs) -> ui.UINode:
+    """Activate a specific account from the multi-account selection list."""
+    accounts = await _all_accounts(ctx)
+    pending = next((a for a in accounts if a.get("doc_id") == doc_id and a.get("_needs_setup")), None)
+    if not pending:
+        return await panel_account_dashboard(ctx, **kwargs)
+
+    try:
+        customers = await list_customers_for_token(ctx, pending.get("access_token", ""))
+    except Exception:
+        customers = []
+
+    target = next((c for c in customers if str(c["account_id"]) == ms_account_id), None)
+    if not target:
+        return await _auto_setup_view(ctx, accounts)
+
+    try:
+        await ctx.store.update(COLLECTION, doc_id, {
+            **{k: v for k, v in pending.items() if k != "doc_id"},
+            "customer_id":  str(target["customer_id"]),
+            "account_id":   str(target["account_id"]),
+            "account_name": target["account_name"],
+            "currency":     target.get("currency", "USD"),
+            "_needs_setup": False,
+        })
+    except Exception:
+        pass
+
+    return ui.Stack([
+        ui.Alert(type="success", message=f"Connected: {target['account_name']}"),
+        ui.Button("", icon="RefreshCw", variant="primary", size="sm",
+                  on_click=ui.Call("__panel__account_dashboard")),
     ])
 
 
