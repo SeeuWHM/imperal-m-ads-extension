@@ -274,7 +274,10 @@ async def fn_disconnect(ctx, params: AccountParams) -> ActionResult:
         None,
     )
     if not target:
-        return ActionResult.error("Account not found.", retryable=False)
+        if len(docs) == 1:
+            target = docs.data[0]
+        else:
+            return ActionResult.error("Account not found.", retryable=False)
 
     await ctx.store.delete(COLLECTION, target.id)
     return ActionResult.success(

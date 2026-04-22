@@ -25,7 +25,11 @@ SYSTEM_PROMPT = (Path(__file__).parent / "system_prompt.txt").read_text()
 
 # ─── Extension ────────────────────────────────────────────────────────── #
 
-ext = Extension("microsoft-ads", version="1.0.0")
+ext = Extension(
+    "microsoft-ads",
+    version="1.0.0",
+    capabilities=["store:read", "store:write", "notify:push", "ai:complete"],
+)
 
 chat = ChatExtension(
     ext=ext,

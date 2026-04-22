@@ -247,7 +247,7 @@ async def fn_analyze_performance(ctx, params: AnalyzeParams) -> ActionResult:
         "5. Budget reallocation suggestion if any campaign is limited\n\n"
         "Be specific. Use actual numbers from the data."
     )
-    analysis = await ctx.ai.complete(prompt=prompt, model="claude-sonnet")
+    analysis = await ctx.ai.complete(prompt=prompt, model="claude-sonnet-4-6")
 
     await ctx.progress(100, "Analysis complete.")
     return ActionResult.success(
