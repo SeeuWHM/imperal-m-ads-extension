@@ -26,7 +26,7 @@ from msads_providers.msads_client import list_customers_for_token
 
 class SetupAccountParams(BaseModel):
     """Select a Microsoft Ads account after OAuth authorisation."""
-    account_id: str = Field(
+    ms_account_id: str = Field(
         default="",
         description="Microsoft Ads Account ID to activate (numeric, e.g. 187176890). Omit to list all available accounts.",
     )
@@ -151,7 +151,7 @@ async def fn_status(ctx) -> ActionResult:
     description=(
         "After OAuth, discover accessible Microsoft Ads accounts and activate one. "
         "Call this after 'connect' to complete the setup. "
-        "If account_id is unknown, call without it to list all available accounts."
+        "If ms_account_id is unknown, call without it to list all available accounts."
     ),
 )
 async def fn_setup_account(ctx, params: SetupAccountParams) -> ActionResult:
@@ -176,18 +176,18 @@ async def fn_setup_account(ctx, params: SetupAccountParams) -> ActionResult:
         )
 
     # If no account_id given, list all and ask user to specify
-    if not params.account_id:
+    if not params.ms_account_id:
         return ActionResult.success(
             data={"available_accounts": customers, "needs_selection": True},
             summary=f"Found {len(customers)} account(s). Specify account_id to activate.",
         )
 
     target = next(
-        (c for c in customers if str(c["account_id"]) == str(params.account_id)), None
+        (c for c in customers if str(c["account_id"]) == str(params.ms_account_id)), None
     )
     if not target:
         return ActionResult.error(
-            f"Account ID {params.account_id} not found. "
+            f"Account ID {params.ms_account_id} not found. "
             f"Available: "
             + ", ".join(f"{c['account_name']} ({c['account_id']})" for c in customers),
             retryable=False,
