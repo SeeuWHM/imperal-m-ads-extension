@@ -15,20 +15,146 @@ SECTION = "msads_account"
 
 
 @ext.panel("account_dashboard", slot="left", title="Microsoft Ads", icon="TrendingUp")
-async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
-    """Account KPIs, budget bar, and campaigns list — served from skeleton cache."""
+async def panel_account_dashboard(
+    ctx,
+    disconnect: str = "",
+    activate_id: str = "",
+    doc_id: str = "",
+    **kwargs,
+) -> ui.UINode:
+    """Left panel: handles connect / setup / dashboard states."""
+
+    # ── Disconnect action ─────────────────────────────────────────────── #
+    if disconnect == "1":
+        accounts = await _all_accounts(ctx)
+        for a in accounts:
+            if a.get("doc_id"):
+                try:
+                    await ctx.store.delete(COLLECTION, a["doc_id"])
+                except Exception:
+                    pass
+        return not_connected_view(ctx)
+
+    # ── Activate specific account ─────────────────────────────────────── #
+    if activate_id and doc_id:
+        accounts = await _all_accounts(ctx)
+        pending = next((a for a in accounts if a.get("doc_id") == doc_id), None)
+        if pending:
+            try:
+                customers = await list_customers_for_token(ctx, pending.get("access_token", ""))
+            except Exception:
+                customers = []
+            target = next((c for c in customers if str(c["account_id"]) == activate_id), None)
+            if target:
+                try:
+                    await ctx.store.update(COLLECTION, doc_id, {
+                        **{k: v for k, v in pending.items() if k != "doc_id"},
+                        "customer_id":  str(target["customer_id"]),
+                        "account_id":   str(target["account_id"]),
+                        "account_name": target["account_name"],
+                        "currency":     target.get("currency", "USD"),
+                        "_needs_setup": False,
+                    })
+                except Exception:
+                    pass
+                return ui.Stack([
+                    ui.Alert(type="success",
+                             message=f"Connected: {target['account_name']} (ID: {target['account_id']})"),
+                    ui.Button("", icon="RefreshCw", variant="primary", size="sm",
+                              on_click=ui.Call("__panel__account_dashboard")),
+                ])
+
+    # ── Connection state check ────────────────────────────────────────── #
     data = await ctx.skeleton.get(SECTION) or {}
 
-    # ── Connection states ─────────────────────────────────────────────── #
     if not data.get("connected"):
         accounts = await _all_accounts(ctx)
         if not accounts:
             return not_connected_view(ctx)
+
         if any(a.get("_needs_setup") for a in accounts):
-            return await _auto_setup_view(ctx, accounts)
+            pending = next((a for a in accounts if a.get("_needs_setup")), {})
+            display_name = pending.get("display_name", "")
+            pending_doc_id = pending.get("doc_id", "")
+
+            try:
+                customers = await list_customers_for_token(ctx, pending.get("access_token", ""))
+            except Exception:
+                customers = []
+
+            if not customers:
+                return ui.Stack([
+                    ui.Header(
+                        text=display_name or "Microsoft Ads",
+                        subtitle="No ad accounts found",
+                    ),
+                    ui.Alert(type="warn",
+                             message="No Microsoft Advertising accounts found for this Microsoft account."),
+                    ui.Text(
+                        "Make sure you sign in with a Microsoft account that has access to Microsoft Advertising.",
+                        variant="caption",
+                    ),
+                    ui.Button(
+                        "Try a different account",
+                        variant="primary",
+                        full_width=True,
+                        icon="RefreshCw",
+                        on_click=ui.Call("__panel__account_dashboard", disconnect="1"),
+                    ),
+                ])
+
+            if len(customers) == 1:
+                target = customers[0]
+                try:
+                    await ctx.store.update(COLLECTION, pending_doc_id, {
+                        **{k: v for k, v in pending.items() if k != "doc_id"},
+                        "customer_id":  str(target["customer_id"]),
+                        "account_id":   str(target["account_id"]),
+                        "account_name": target["account_name"],
+                        "currency":     target.get("currency", "USD"),
+                        "_needs_setup": False,
+                    })
+                except Exception:
+                    pass
+                return ui.Stack([
+                    ui.Alert(type="success",
+                             message=f"Connected: {target['account_name']} (ID: {target['account_id']})"),
+                    ui.Button("", icon="RefreshCw", variant="primary", size="sm",
+                              on_click=ui.Call("__panel__account_dashboard")),
+                ])
+
+            # Multiple accounts
+            return ui.Stack([
+                ui.Header(
+                    text=display_name or "Select account",
+                    subtitle=f"{len(customers)} accounts available",
+                ),
+                ui.List(items=[
+                    ui.ListItem(
+                        id=str(c["account_id"]),
+                        title=c["account_name"],
+                        subtitle=f"ID: {c['account_id']} · {c.get('currency', 'USD')}",
+                        icon="TrendingUp",
+                        on_click=ui.Call(
+                            "__panel__account_dashboard",
+                            activate_id=str(c["account_id"]),
+                            doc_id=pending_doc_id,
+                        ),
+                    )
+                    for c in customers
+                ]),
+                ui.Divider(),
+                ui.Button(
+                    "Wrong account? Disconnect",
+                    variant="ghost",
+                    full_width=True,
+                    on_click=ui.Call("__panel__account_dashboard", disconnect="1"),
+                ),
+            ])
+
         return error_view("Connection error. Try reconnecting.", ctx)
 
-    # ── Extract skeleton data ─────────────────────────────────────────── #
+    # ── Connected: extract skeleton data ──────────────────────────────── #
     today     = data.get("today", {})
     campaigns = data.get("campaigns", [])
     alerts    = data.get("alerts", [])
@@ -47,7 +173,6 @@ async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
     )
     pct_spent = round(spend / budget_total * 100, 1) if budget_total else 0
 
-    # ── Budget progress bar ───────────────────────────────────────────── #
     _budget_color = "red" if pct_spent >= 90 else "yellow" if pct_spent >= 70 else "green"
     budget_bar = ui.Progress(
         value=min(int(pct_spent), 100),
@@ -55,7 +180,6 @@ async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
         color=_budget_color,
     )
 
-    # ── Budget alerts (max 2) ─────────────────────────────────────────── #
     alert_nodes = [
         ui.Alert(
             type="error" if a.get("type") == "budget_critical" else "warn",
@@ -64,27 +188,22 @@ async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
         for a in alerts[:2]
     ]
 
-    # ── Today's KPI stats ─────────────────────────────────────────────── #
     kpi_stats = ui.Stats(columns=2, children=[
         ui.Stat(label="Spend Today",  value=fmt_currency(spend, currency),
                 icon="DollarSign",   color="blue"),
         ui.Stat(label="Clicks",       value=fmt_number(clicks),
                 icon="MousePointer", color="green"),
-        ui.Stat(label="CTR",          value=fmt_pct(ctr),
-                icon="Percent"),
-        ui.Stat(label="Avg CPC",      value=fmt_currency(cpc, currency),
-                icon="Tag"),
+        ui.Stat(label="CTR",          value=fmt_pct(ctr),   icon="Percent"),
+        ui.Stat(label="Avg CPC",      value=fmt_currency(cpc, currency), icon="Tag"),
     ])
 
-    # ── Campaigns list ────────────────────────────────────────────────── #
     camp_items = []
     for c in campaigns:
-        cid       = str(c.get("id", c.get("campaign_id", "")))
-        c_spend   = float(c.get("today_spend", c.get("spend", 0)) or 0)
-        c_clicks  = int(c.get("clicks", 0) or 0)
-        c_status  = c.get("status", "")
+        cid      = str(c.get("id", c.get("campaign_id", "")))
+        c_spend  = float(c.get("today_spend", c.get("spend", 0)) or 0)
+        c_clicks = int(c.get("clicks", 0) or 0)
+        c_status = c.get("status", "")
         is_active = c_status == "Active"
-
         camp_items.append(ui.ListItem(
             id=cid,
             title=c.get("name", "Campaign"),
@@ -106,18 +225,13 @@ async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
         label=f"CAMPAIGNS  ·  {n_active} active  {n_paused} paused"
               if (n_active or n_paused) else f"CAMPAIGNS ({len(campaigns)})"
     )
-
     camp_list = (
         ui.List(items=camp_items, searchable=True, page_size=10)
         if camp_items else
-        ui.Empty(
-            message="No campaigns yet.",
-            icon="BarChart2",
-            action=ui.Send("Create a new Microsoft Ads campaign"),
-        )
+        ui.Empty(message="No campaigns yet.", icon="BarChart2",
+                 action=ui.Send("Create a new Microsoft Ads campaign"))
     )
 
-    # ── Sticky footer ─────────────────────────────────────────────────── #
     footer = ui.Stack([
         ui.Button("+ Campaign", variant="primary", icon="Plus",
                   on_click=ui.Send("Create a new Microsoft Ads campaign")),
@@ -137,136 +251,3 @@ async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
         camp_list,
         footer,
     ])
-
-
-async def _auto_setup_view(ctx, accounts: list) -> ui.UINode:
-    """Called when _needs_setup is True. Fetches MS Ads accounts and auto-activates."""
-    pending = next((a for a in accounts if a.get("_needs_setup")), {})
-    display_name = pending.get("display_name", "")
-    doc_id = pending.get("doc_id", "")
-
-    try:
-        customers = await list_customers_for_token(ctx, pending.get("access_token", ""))
-    except Exception:
-        customers = []
-
-    if not customers:
-        return ui.Stack([
-            ui.Header(
-                text=display_name or "Microsoft Ads",
-                subtitle="No ad accounts found",
-            ),
-            ui.Alert(
-                type="warn",
-                message="No Microsoft Advertising accounts found for this Microsoft account.",
-            ),
-            ui.Text(
-                "Make sure you sign in with a Microsoft account that has access to Microsoft Advertising.",
-                variant="caption",
-            ),
-            ui.Button(
-                "Try a different account",
-                variant="primary",
-                full_width=True,
-                icon="RefreshCw",
-                on_click=ui.Call("__panel__force_disconnect"),
-            ),
-        ])
-
-    if len(customers) == 1:
-        target = customers[0]
-        try:
-            await ctx.store.update(COLLECTION, doc_id, {
-                **{k: v for k, v in pending.items() if k != "doc_id"},
-                "customer_id":  str(target["customer_id"]),
-                "account_id":   str(target["account_id"]),
-                "account_name": target["account_name"],
-                "currency":     target.get("currency", "USD"),
-                "_needs_setup": False,
-            })
-        except Exception:
-            pass
-        return ui.Stack([
-            ui.Alert(type="success", message=f"Connected: {target['account_name']} (ID: {target['account_id']})"),
-            ui.Button("", icon="RefreshCw", variant="primary", size="sm",
-                      on_click=ui.Call("__panel__account_dashboard")),
-        ])
-
-    # Multiple accounts — show selection list
-    return ui.Stack([
-        ui.Header(
-            text=display_name or "Select account",
-            subtitle=f"{len(customers)} Microsoft Ads accounts available",
-        ),
-        ui.List(items=[
-            ui.ListItem(
-                id=str(c["account_id"]),
-                title=c["account_name"],
-                subtitle=f"ID: {c['account_id']} · {c.get('currency', 'USD')}",
-                icon="TrendingUp",
-                on_click=ui.Call(
-                    "__panel__activate_account",
-                    ms_account_id=str(c["account_id"]),
-                    doc_id=doc_id,
-                ),
-            )
-            for c in customers
-        ]),
-        ui.Divider(),
-        ui.Button(
-            "Wrong account? Disconnect",
-            variant="ghost",
-            full_width=True,
-            on_click=ui.Call("__panel__force_disconnect"),
-        ),
-    ])
-
-
-@ext.panel("activate_account", slot="left", title="Microsoft Ads", icon="TrendingUp")
-async def panel_activate_account(ctx, ms_account_id: str = "", doc_id: str = "", **kwargs) -> ui.UINode:
-    """Activate a specific account from the multi-account selection list."""
-    accounts = await _all_accounts(ctx)
-    pending = next((a for a in accounts if a.get("doc_id") == doc_id and a.get("_needs_setup")), None)
-    if not pending:
-        return await panel_account_dashboard(ctx, **kwargs)
-
-    try:
-        customers = await list_customers_for_token(ctx, pending.get("access_token", ""))
-    except Exception:
-        customers = []
-
-    target = next((c for c in customers if str(c["account_id"]) == ms_account_id), None)
-    if not target:
-        return await _auto_setup_view(ctx, accounts)
-
-    try:
-        await ctx.store.update(COLLECTION, doc_id, {
-            **{k: v for k, v in pending.items() if k != "doc_id"},
-            "customer_id":  str(target["customer_id"]),
-            "account_id":   str(target["account_id"]),
-            "account_name": target["account_name"],
-            "currency":     target.get("currency", "USD"),
-            "_needs_setup": False,
-        })
-    except Exception:
-        pass
-
-    return ui.Stack([
-        ui.Alert(type="success", message=f"Connected: {target['account_name']}"),
-        ui.Button("", icon="RefreshCw", variant="primary", size="sm",
-                  on_click=ui.Call("__panel__account_dashboard")),
-    ])
-
-
-@ext.panel("force_disconnect", slot="left", title="Microsoft Ads", icon="TrendingUp")
-async def panel_force_disconnect(ctx, **kwargs) -> ui.UINode:
-    """Wipe all stored MS Ads accounts and return to connect view."""
-    accounts = await _all_accounts(ctx)
-    for a in accounts:
-        doc_id = a.get("doc_id")
-        if doc_id:
-            try:
-                await ctx.store.delete(COLLECTION, doc_id)
-            except Exception:
-                pass
-    return not_connected_view(ctx)
