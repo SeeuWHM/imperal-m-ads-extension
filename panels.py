@@ -4,7 +4,7 @@ from __future__ import annotations
 from imperal_sdk import ui
 
 from app import ext
-from msads_providers.helpers import _all_accounts
+from msads_providers.helpers import _all_accounts, COLLECTION
 from panels_ui import (
     campaign_badge, fmt_currency, fmt_pct, fmt_number,
     not_connected_view, needs_setup_view, error_view,
@@ -138,3 +138,17 @@ async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
         camp_list,
         footer,
     ])
+
+
+@ext.panel("force_disconnect", slot="left", title="Microsoft Ads", icon="TrendingUp")
+async def panel_force_disconnect(ctx, **kwargs) -> ui.UINode:
+    """Wipe all stored MS Ads accounts and return to connect view."""
+    accounts = await _all_accounts(ctx)
+    for a in accounts:
+        doc_id = a.get("doc_id")
+        if doc_id:
+            try:
+                await ctx.store.delete(COLLECTION, doc_id)
+            except Exception:
+                pass
+    return not_connected_view(ctx)

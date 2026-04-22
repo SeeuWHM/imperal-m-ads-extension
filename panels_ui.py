@@ -126,7 +126,7 @@ def needs_setup_view(display_name: str = "") -> ui.UINode:
             "Wrong account? Disconnect",
             variant="ghost",
             full_width=True,
-            on_click=ui.Send("Disconnect Microsoft Ads account"),
+            on_click=ui.Call("__panel__force_disconnect"),
         ),
     ])
 
