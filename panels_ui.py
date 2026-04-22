@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from urllib.parse import urlencode
 
 from imperal_sdk import ui
+from msads_providers.helpers import (
+    MS_ADS_AUTH_URL, MS_ADS_CLIENT_ID, MS_ADS_REDIRECT_URI,
+    MS_ADS_SCOPE, _oauth_state,
+)
 
 # ─── Date range options ───────────────────────────────────────────────── #
 
@@ -71,28 +76,69 @@ def campaign_badge(status: str) -> ui.Badge:
 
 # ─── Connection state views ───────────────────────────────────────────── #
 
-def not_connected_view() -> ui.UINode:
+def _build_oauth_url(ctx) -> str:
+    if not MS_ADS_CLIENT_ID:
+        return ""
+    return MS_ADS_AUTH_URL + "?" + urlencode({
+        "client_id":     MS_ADS_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri":  MS_ADS_REDIRECT_URI,
+        "scope":         MS_ADS_SCOPE,
+        "response_mode": "query",
+        "state":         _oauth_state(ctx),
+    })
+
+
+def not_connected_view(ctx) -> ui.UINode:
+    url = _build_oauth_url(ctx)
     return ui.Stack([
-        ui.Empty(
-            message="No Microsoft Ads account connected.",
-            icon="TrendingUp",
-            action=ui.Send("Connect Microsoft Ads"),
+        ui.Header(text="Microsoft Ads", subtitle="Not connected"),
+        ui.Divider(),
+        ui.Text(
+            "Connect your Microsoft Advertising account to manage campaigns via AI.",
+            variant="caption",
+        ),
+        ui.Button(
+            "Connect Microsoft Ads",
+            variant="primary",
+            icon="ExternalLink",
+            full_width=True,
+            on_click=ui.Open(url) if url else ui.Send("Connect Microsoft Ads"),
         ),
     ])
 
 
-def needs_setup_view() -> ui.UINode:
+def needs_setup_view(display_name: str = "") -> ui.UINode:
+    who = f" as {display_name}" if display_name else ""
     return ui.Stack([
-        ui.Alert(type="warn",
-                 message="Authorised! Select your ad account to continue."),
-        ui.Button("Setup account", variant="primary", full_width=True,
-                  on_click=ui.Send("Setup my Microsoft Ads account")),
+        ui.Alert(
+            type="info",
+            message=f"Signed in{who} with Microsoft. Select your ad account to continue.",
+        ),
+        ui.Button(
+            "Setup account",
+            variant="primary",
+            full_width=True,
+            on_click=ui.Send("Setup my Microsoft Ads account"),
+        ),
+        ui.Divider(),
+        ui.Button(
+            "Wrong account? Disconnect",
+            variant="ghost",
+            full_width=True,
+            on_click=ui.Send("Disconnect Microsoft Ads account"),
+        ),
     ])
 
 
-def error_view(msg: str) -> ui.UINode:
+def error_view(msg: str, ctx=None) -> ui.UINode:
+    url = _build_oauth_url(ctx) if ctx else ""
     return ui.Stack([
         ui.Alert(type="error", message=msg[:200]),
-        ui.Button("Reconnect", variant="ghost",
-                  on_click=ui.Send("Reconnect Microsoft Ads")),
+        ui.Button(
+            "Reconnect",
+            variant="primary",
+            full_width=True,
+            on_click=ui.Open(url) if url else ui.Send("Reconnect Microsoft Ads"),
+        ),
     ])

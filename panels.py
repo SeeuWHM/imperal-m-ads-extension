@@ -22,10 +22,12 @@ async def panel_account_dashboard(ctx, **kwargs) -> ui.UINode:
     if not data.get("connected"):
         accounts = await _all_accounts(ctx)
         if not accounts:
-            return not_connected_view()
+            return not_connected_view(ctx)
         if any(a.get("_needs_setup") for a in accounts):
-            return needs_setup_view()
-        return error_view("Connection error. Try reconnecting.")
+            pending = next((a for a in accounts if a.get("_needs_setup")), {})
+            display_name = pending.get("display_name", "")
+            return needs_setup_view(display_name)
+        return error_view("Connection error. Try reconnecting.", ctx)
 
     # ── Extract skeleton data ─────────────────────────────────────────── #
     today     = data.get("today", {})
