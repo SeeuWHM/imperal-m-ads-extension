@@ -41,7 +41,7 @@ async def _refresh_msads_token(ctx: Context, acc: dict) -> dict:
         log.warning(
             "Microsoft Ads token refresh failed: %s — %s",
             resp.status_code,
-            resp.text[:200],
+            resp.text()[:200],
         )
         if resp.status_code == 400:
             # Refresh token expired — user must re-authorise

@@ -77,7 +77,7 @@ async def list_customers_for_token(ctx: Context, access_token: str) -> list[dict
     )
     if r.status_code == 200:
         return r.json().get("customers", [])
-    log.warning("list_customers_for_token: %s %s", r.status_code, r.text[:200])
+    log.warning("list_customers_for_token: %s %s", r.status_code, r.text()[:200])
     return []
 
 
