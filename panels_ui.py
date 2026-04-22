@@ -85,6 +85,7 @@ def _build_oauth_url(ctx) -> str:
         "redirect_uri":  MS_ADS_REDIRECT_URI,
         "scope":         MS_ADS_SCOPE,
         "response_mode": "query",
+        "prompt":        "select_account",
         "state":         _oauth_state(ctx),
     })
 
