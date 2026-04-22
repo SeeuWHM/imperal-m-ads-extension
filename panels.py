@@ -152,6 +152,18 @@ async def panel_account_dashboard(
                 ),
             ])
 
+        # Account is set up but skeleton not populated yet — show loading state
+        ready = next((a for a in accounts if a.get("customer_id") and not a.get("_needs_setup")), None)
+        if ready:
+            return ui.Stack([
+                ui.Header(
+                    text=ready.get("account_name", "Microsoft Ads"),
+                    subtitle=f"ID: {ready.get('account_id', '')}",
+                ),
+                ui.Alert(type="info", message="Loading your campaigns data…"),
+                ui.Button("", icon="RefreshCw", variant="primary", size="sm",
+                          on_click=ui.Call("__panel__account_dashboard")),
+            ])
         return error_view("Connection error. Try reconnecting.", ctx)
 
     # ── Connected: extract skeleton data ──────────────────────────────── #
