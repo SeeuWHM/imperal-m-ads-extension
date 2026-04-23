@@ -161,28 +161,37 @@ async def fn_get_budget_status(ctx) -> ActionResult:
 
     today = date.today().isoformat()
     try:
-        campaigns = await api.get_campaigns(ctx, acc)
-        budget_report = await api.get_report(
-            ctx, acc, "budget",
-            start_date=today, end_date=today,
-            aggregation="Summary",
+        # GET /v1/campaigns → campaign list with daily_budget, status, name, id
+        # GET /v1/reports/campaign (Summary, today) → Spend per CampaignId
+        # Both calls run in parallel for performance.
+        import asyncio as _asyncio
+        campaigns_resp, spend_resp = await _asyncio.gather(
+            api.get_campaigns(ctx, acc),
+            api.get_report(
+                ctx, acc, "campaign",
+                start_date=today, end_date=today,
+                aggregation="Summary",
+            ),
         )
     except Exception as exc:
         return ActionResult.error(str(exc)[:200], retryable=True)
 
-    camp_list   = campaigns.get("campaigns", [])
-    budget_rows = budget_report.get("rows", budget_report.get("data", []))
+    camp_list  = campaigns_resp.get("campaigns", [])
+    spend_rows = spend_resp.get("rows", spend_resp.get("data", []))
 
-    # Build spend lookup keyed by campaign_id
-    spend_map = {str(r.get("CampaignId", r.get("campaign_id", ""))): r for r in budget_rows}
+    # Build spend lookup: CampaignId (PascalCase — Microsoft API) → Spend value
+    spend_map: dict[str, float] = {
+        str(r.get("CampaignId", r.get("campaign_id", ""))): float(r.get("Spend", r.get("spend", 0)) or 0)
+        for r in spend_rows
+        if r.get("CampaignId") or r.get("campaign_id")
+    }
 
     result = []
     for c in camp_list:
-        cid     = str(c.get("id", c.get("campaign_id", "")))
-        budget  = float(c.get("daily_budget", c.get("budget_amount", 0)))
-        row     = spend_map.get(cid, {})
-        spend   = float(row.get("DailySpend", row.get("spend", 0)))
-        pct     = round(spend / budget * 100, 1) if budget else 0
+        cid    = str(c.get("id", c.get("campaign_id", "")))
+        budget = float(c.get("daily_budget", c.get("budget_amount", 0)) or 0)
+        spend  = spend_map.get(cid, 0.0)
+        pct    = round(spend / budget * 100, 1) if budget > 0 else 0.0
         result.append({
             "campaign_id":   cid,
             "campaign_name": c.get("name", ""),
@@ -197,8 +206,11 @@ async def fn_get_budget_status(ctx) -> ActionResult:
     alerts = [r for r in result if r["alert"]]
     return ActionResult.success(
         data={"campaigns": result, "alerts": alerts, "date": today},
-        summary=f"Budget status: {len(alerts)} campaign(s) near limit."
-                if alerts else f"Budget status: {len(result)} campaign(s), all within budget.",
+        summary=(
+            f"Budget status: {len(alerts)} campaign(s) near limit."
+            if alerts else
+            f"Budget status: {len(result)} campaign(s), all within budget."
+        ),
     )
 
 

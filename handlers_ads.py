@@ -108,7 +108,12 @@ async def fn_create_ad_group(ctx, params: CreateAdGroupParams) -> ActionResult:
         })
     except Exception as exc:
         return ActionResult.error(str(exc)[:200], retryable=False)
-    ad_group_id = result.get("ad_group_id") or result.get("id")
+    # Microservice returns {"ad_group": {...}, "message": "..."}
+    ad_group_id = (
+        result.get("ad_group", {}).get("id")
+        or result.get("ad_group_id")
+        or result.get("id")
+    )
     return ActionResult.success(
         data={
             "ad_group_id":  str(ad_group_id),
@@ -180,7 +185,12 @@ async def fn_create_ad(ctx, params: CreateAdParams) -> ActionResult:
     except Exception as exc:
         return ActionResult.error(str(exc)[:200], retryable=False)
 
-    ad_id = result.get("ad_id") or result.get("id")
+    # Microservice returns {"ad": {...}, "message": "..."}
+    ad_id = (
+        result.get("ad", {}).get("id")
+        or result.get("ad_id")
+        or result.get("id")
+    )
     return ActionResult.success(
         data={
             "ad_id":        str(ad_id),

@@ -58,9 +58,31 @@ async def _post(ctx: Context, acc: dict, path: str, body: dict) -> Any:
     return r.json()
 
 
-async def _patch(ctx: Context, acc: dict, path: str, body: dict) -> Any:
+async def _patch(
+    ctx: Context, acc: dict, path: str, body: dict, *, params: dict | None = None
+) -> Any:
     acc = await _refresh_token_if_needed(ctx, acc)
-    r = await ctx.http.patch(f"{MSADS_API_URL}{path}", headers=_headers(acc), json=body)
+    r = await ctx.http.patch(
+        f"{MSADS_API_URL}{path}",
+        headers=_headers(acc),
+        json=body,
+        params={k: v for k, v in (params or {}).items() if v is not None},
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+async def _delete(
+    ctx: Context, acc: dict, path: str, *, params: dict | None = None, body: dict | None = None
+) -> Any:
+    acc = await _refresh_token_if_needed(ctx, acc)
+    kwargs: dict = {
+        "headers": _headers(acc),
+        "params": {k: v for k, v in (params or {}).items() if v is not None},
+    }
+    if body is not None:
+        kwargs["json"] = body
+    r = await ctx.http.delete(f"{MSADS_API_URL}{path}", **kwargs)
     r.raise_for_status()
     return r.json()
 
@@ -160,13 +182,76 @@ async def get_report(
     campaign_id: int | None = None,
     ad_group_id: int | None = None,
 ) -> dict:
-    """Fetch a performance report. report_type maps to /v1/reports/{type}."""
-    return await _get(
-        ctx, acc,
-        f"/v1/reports/{report_type}",
-        start_date=start_date,
-        end_date=end_date,
-        aggregation=aggregation,
-        campaign_id=campaign_id,
-        ad_group_id=ad_group_id,
+    """Fetch a performance report. report_type maps to GET /v1/reports/{type}.
+
+    campaign_id param handling:
+      - /v1/reports/campaign  → expects `campaign_ids` (comma-separated string)
+      - all other endpoints   → expect `campaign_id` (int)
+    """
+    params: dict = {
+        "start_date":  start_date,
+        "end_date":    end_date,
+        "aggregation": aggregation,
+    }
+    if campaign_id is not None:
+        if report_type == "campaign":
+            params["campaign_ids"] = str(campaign_id)
+        else:
+            params["campaign_id"] = campaign_id
+    if ad_group_id is not None:
+        params["ad_group_id"] = ad_group_id
+
+    return await _get(ctx, acc, f"/v1/reports/{report_type}", **params)
+
+
+# ─── Keywords (extended) ──────────────────────────────────────────────────── #
+
+async def update_keyword(
+    ctx: Context, acc: dict, keyword_id: int, ad_group_id: int, data: dict
+) -> dict:
+    """Update a keyword's status or bid. ad_group_id required by MS API."""
+    return await _patch(
+        ctx, acc, f"/v1/keywords/{keyword_id}", data,
+        params={"ad_group_id": ad_group_id},
     )
+
+
+async def delete_keyword(ctx: Context, acc: dict, keyword_id: int, ad_group_id: int) -> dict:
+    """Delete a keyword from an ad group."""
+    return await _delete(
+        ctx, acc, f"/v1/keywords/{keyword_id}",
+        params={"ad_group_id": ad_group_id},
+    )
+
+
+async def delete_campaign(ctx: Context, acc: dict, campaign_id: int) -> dict:
+    """Delete (permanently remove) a campaign."""
+    return await _delete(ctx, acc, f"/v1/campaigns/{campaign_id}")
+
+
+# ─── Negative Keywords ────────────────────────────────────────────────────── #
+
+async def list_negative_keywords(
+    ctx: Context, acc: dict, entity_id: int, entity_type: str = "Campaign"
+) -> dict:
+    """List negative keywords for a campaign or ad group."""
+    return await _get(
+        ctx, acc, "/v1/negative-keywords",
+        entity_id=entity_id, entity_type=entity_type,
+    )
+
+
+async def add_negative_keywords(ctx: Context, acc: dict, data: dict) -> dict:
+    """Add negative keywords to a campaign or ad group.
+
+    data: {entity_id, entity_type, keywords: [{text, match_type}]}
+    """
+    return await _post(ctx, acc, "/v1/negative-keywords", data)
+
+
+async def remove_negative_keywords(ctx: Context, acc: dict, data: dict) -> dict:
+    """Remove negative keywords by ID.
+
+    data: {entity_id, entity_type, keyword_ids: [int]}
+    """
+    return await _delete(ctx, acc, "/v1/negative-keywords", body=data)

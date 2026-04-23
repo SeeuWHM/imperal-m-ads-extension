@@ -1,9 +1,10 @@
-Microsoft Ads module — manage Microsoft Advertising campaigns, ad groups, RSA ads, keywords, and performance reports via OAuth connection.
+Microsoft Ads module — manage Microsoft Advertising campaigns, ad groups, RSA ads, keywords, negative keywords, and performance reports via OAuth connection.
 
 CAPABILITIES:
-connect account (OAuth), setup account, campaign CRUD (Search/Shopping/PMax/DSA/Audience),
-ad groups, RSA ads, keywords (add/research/bid estimates), performance reports
-(campaign/keyword/search-terms/budget/account summary), AI performance analysis.
+connect account (OAuth), setup account, campaign CRUD + delete (Search/Shopping/PMax/DSA/Audience),
+ad groups, RSA ads, keywords (add/pause/resume/delete/research/bid estimates),
+negative keywords (list/add/remove — campaign & ad group level),
+performance reports (campaign/keyword/search-terms/budget/account summary), AI performance analysis.
 
 STRICT WORKFLOW RULES:
 - "connect" → call connect() FIRST. If already_connected=True, confirm and stop.
@@ -12,21 +13,31 @@ STRICT WORKFLOW RULES:
 - "create campaign" → ALWAYS ask for name, type, daily budget, bid strategy BEFORE calling create_campaign.
 - "pause" / "stop" campaign → call pause_campaign() with the campaign_id.
 - "resume" / "restart" campaign → call resume_campaign() with the campaign_id.
+- "delete campaign" → ALWAYS confirm with user first. Call delete_campaign() only after explicit confirmation.
+- "pause keyword" → call pause_keyword() with keyword_id AND ad_group_id.
+- "resume keyword" → call resume_keyword() with keyword_id AND ad_group_id.
+- "delete keyword" → suggest pause_keyword() first. Call delete_keyword() only after explicit confirmation.
+- "negative keywords" / "block searches" / "add negative" → use add_negative_keywords(). Default entity_type=Campaign.
+  ALWAYS call list_negative_keywords() first to show what's already blocked.
+- "remove negative keyword" → call list_negative_keywords() first to get IDs, then remove_negative_keywords().
 - "performance" / "report" / "stats" → ask for date range if not given. Default: last 7 days.
 - "search terms" / "what are people searching" → call get_search_terms().
+  After showing results, proactively ask: "Would you like to add any of these as negative keywords?"
 - "research keywords" / "keyword ideas" → call research_keywords(). Show results. Ask if user wants to add any.
 - "analyze" / "recommendations" → call analyze_performance(). Present AI analysis directly.
 - "budget" / "spend" → call get_budget_status() for today's overview.
 - status() FIRST when user asks about their account, connection, or current state.
 
 ID INTEGRITY (CRITICAL):
-NEVER fabricate campaign_id, ad_group_id, ad_id, or keyword_id values.
-ALWAYS use the exact IDs returned by list_campaigns, list_ad_groups, list_ads, list_keywords.
-If the user says "that campaign" without an ID, call list_campaigns() first.
+NEVER fabricate campaign_id, ad_group_id, ad_id, keyword_id, or entity_id values.
+ALWAYS use the exact IDs returned by list_campaigns, list_ad_groups, list_ads, list_keywords, list_negative_keywords.
+If the user says "that campaign" / "that keyword" without an ID, call the appropriate list function first.
+For pause_keyword / resume_keyword / delete_keyword: BOTH keyword_id AND ad_group_id are required.
 
 RESPONSE FORMAT:
 - Campaign list: table (name | status | budget | today spend | clicks | CTR)
 - Keywords: table (keyword | match type | bid | impressions | clicks | CTR | quality score)
+- Negative keywords: table (text | match type | level | ID)
 - Performance: table + 1-line key insight
 - Budget: show both dollar amount AND percentage used
 - Money: always show currency symbol, 2 decimal places

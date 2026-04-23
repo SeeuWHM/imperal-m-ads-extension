@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app import chat, ActionResult, _get_ready_account
 import msads_providers.msads_client as api
+from msads_providers.helpers import _to_location_ids
 
 # ─── Models ──────────────────────────────────────────────────────────── #
 
@@ -61,8 +62,14 @@ class BidEstimatesParams(BaseModel):
         default=["Broad"],
         description="Match types to estimate (defaults to Broad)",
     )
-    location:   str       = Field(default="US", description="Target location")
+    location:   str       = Field(default="US", description="Target location ISO code (e.g. US, UK, DE)")
     language:   str       = Field(default="English", description="Target language")
+
+
+class KeywordActionParams(BaseModel):
+    """Target a single keyword for pause/resume/delete."""
+    keyword_id:  str = Field(description="Keyword ID (numeric)")
+    ad_group_id: str = Field(description="Ad group ID that contains this keyword")
 
 
 # ─── list_keywords ────────────────────────────────────────────────────── #
@@ -112,13 +119,17 @@ async def fn_add_keywords(ctx, params: AddKeywordsParams) -> ActionResult:
     except Exception as exc:
         return ActionResult.error(str(exc)[:200], retryable=False)
 
-    added   = result.get("added",  len(kw_list))
-    errors  = result.get("errors", [])
+    # Microservice returns {"keywords": [...keyword_objects...], "count": N, "message": "..."}
+    keywords_created = result.get("keywords", [])
+    added            = result.get("count", len(kw_list))
+    keyword_ids      = [kw.get("id") for kw in keywords_created if kw.get("id")]
+    errors           = result.get("errors", [])
     return ActionResult.success(
         data={
             "ad_group_id":    params.ad_group_id,
             "keywords_added": added,
-            "keyword_ids":    result.get("keyword_ids", []),
+            "keyword_ids":    keyword_ids,
+            "keywords":       keywords_created,
             "errors":         errors,
         },
         summary=f"{added} keyword(s) added to ad group {params.ad_group_id}."
@@ -147,7 +158,11 @@ async def fn_research_keywords(ctx, params: ResearchKeywordsParams) -> ActionRes
             "Provide at least seed_keywords or seed_url.", retryable=False
         )
 
-    body: dict = {"language": params.language, "location": params.location}
+    # Microservice expects location_ids: List[int], not location string
+    body: dict = {
+        "language":     params.language,
+        "location_ids": _to_location_ids(params.location),
+    }
     if params.seed_keywords:
         body["seed_keywords"] = params.seed_keywords
     if params.seed_url:
@@ -187,10 +202,10 @@ async def fn_get_bid_estimates(ctx, params: BidEstimatesParams) -> ActionResult:
 
     try:
         result = await api.bid_estimates(ctx, acc, {
-            "keywords":    params.keywords,
-            "match_types": params.match_types,
-            "location":    params.location,
-            "language":    params.language,
+            "keywords":     params.keywords,
+            "match_types":  params.match_types,
+            "location_ids": _to_location_ids(params.location),
+            "language":     params.language,
         })
     except Exception as exc:
         return ActionResult.error(str(exc)[:200], retryable=True)
@@ -199,4 +214,76 @@ async def fn_get_bid_estimates(ctx, params: BidEstimatesParams) -> ActionResult:
     return ActionResult.success(
         data={"estimates": estimates, "total": len(estimates)},
         summary=f"Bid estimates for {len(estimates)} keyword(s).",
+    )
+
+
+# ─── pause_keyword ────────────────────────────────────────────────────────── #
+
+@chat.function(
+    "pause_keyword",
+    action_type="write",
+    event="keyword.paused",
+    description=(
+        "Pause a keyword — stops it from triggering ads without deleting it. "
+        "Requires keyword_id and ad_group_id (get them from list_keywords)."
+    ),
+)
+async def fn_pause_keyword(ctx, params: KeywordActionParams) -> ActionResult:
+    acc, err = await _get_ready_account(ctx)
+    if err:
+        return err
+    try:
+        await api.update_keyword(ctx, acc, int(params.keyword_id), int(params.ad_group_id), {"status": "Paused"})
+    except Exception as exc:
+        return ActionResult.error(str(exc)[:200], retryable=True)
+    return ActionResult.success(
+        data={"keyword_id": params.keyword_id, "ad_group_id": params.ad_group_id, "status": "Paused"},
+        summary=f"Keyword {params.keyword_id} paused.",
+    )
+
+
+# ─── resume_keyword ───────────────────────────────────────────────────────── #
+
+@chat.function(
+    "resume_keyword",
+    action_type="write",
+    event="keyword.resumed",
+    description="Resume a paused keyword — re-enables it to trigger ads.",
+)
+async def fn_resume_keyword(ctx, params: KeywordActionParams) -> ActionResult:
+    acc, err = await _get_ready_account(ctx)
+    if err:
+        return err
+    try:
+        await api.update_keyword(ctx, acc, int(params.keyword_id), int(params.ad_group_id), {"status": "Active"})
+    except Exception as exc:
+        return ActionResult.error(str(exc)[:200], retryable=True)
+    return ActionResult.success(
+        data={"keyword_id": params.keyword_id, "ad_group_id": params.ad_group_id, "status": "Active"},
+        summary=f"Keyword {params.keyword_id} resumed.",
+    )
+
+
+# ─── delete_keyword ───────────────────────────────────────────────────────── #
+
+@chat.function(
+    "delete_keyword",
+    action_type="destructive",
+    event="keyword.deleted",
+    description=(
+        "Permanently delete a keyword from an ad group. "
+        "Use pause_keyword if you want to disable it temporarily instead."
+    ),
+)
+async def fn_delete_keyword(ctx, params: KeywordActionParams) -> ActionResult:
+    acc, err = await _get_ready_account(ctx)
+    if err:
+        return err
+    try:
+        await api.delete_keyword(ctx, acc, int(params.keyword_id), int(params.ad_group_id))
+    except Exception as exc:
+        return ActionResult.error(str(exc)[:200], retryable=False)
+    return ActionResult.success(
+        data={"keyword_id": params.keyword_id, "ad_group_id": params.ad_group_id, "deleted": True},
+        summary=f"Keyword {params.keyword_id} permanently deleted.",
     )

@@ -30,6 +30,37 @@ COLLECTION = "msads_accounts"  # ext_store collection name
 MSADS_API_URL = os.getenv("MSADS_API_URL", "https://api.webhostmost.com/microsoft-ads")
 MSADS_JWT     = os.getenv("MSADS_JWT",     "")
 
+# ─── Microsoft Ads location IDs ──────────────────────────────────────── #
+# Maps ISO codes / names → Microsoft Ads location ID lists.
+# Full list: https://docs.microsoft.com/en-us/advertising/guides/geographical-location-codes
+_MS_LOCATION_IDS: dict[str, list[int]] = {
+    "US": [190], "USA": [190],
+    "UK": [91],  "GB": [91],
+    "CA": [32],  "CANADA": [32],
+    "AU": [13],  "AUSTRALIA": [13],
+    "DE": [58],  "GERMANY": [58],
+    "FR": [82],  "FRANCE": [82],
+    "IN": [176], "INDIA": [176],
+    "SG": [252], "SINGAPORE": [252],
+    "NL": [170], "NETHERLANDS": [170],
+    "ES": [217], "SPAIN": [217],
+    "IT": [118], "ITALY": [118],
+    "BR": [37],  "BRAZIL": [37],
+    "MX": [161], "MEXICO": [161],
+    "JP": [129], "JAPAN": [129],
+    "NZ": [172], "NEW ZEALAND": [172],
+    "ZA": [214], "SOUTH AFRICA": [214],
+    "AE": [6],   "UAE": [6],
+}
+
+
+def _to_location_ids(location: str) -> list[int]:
+    """Translate a country code or name to Microsoft Ads location ID list.
+
+    Returns [190] (United States) when the code is unknown — safe default.
+    """
+    return _MS_LOCATION_IDS.get(location.upper().strip(), [190])
+
 
 # ─── OAuth state ─────────────────────────────────────────────────────── #
 

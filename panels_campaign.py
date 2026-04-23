@@ -33,10 +33,11 @@ async def panel_campaign_detail(
     if err:
         return ui.Stack([ui.Alert(type="error", message=err.error or err.summary)])
 
-    # ── Parallel fetch: campaign details + skeleton ───────────────────── #
+    # ── Parallel fetch: campaign details + ad groups + skeleton ──────── #
     try:
-        camp_data, skel = await asyncio.gather(
+        camp_data, ag_data, skel = await asyncio.gather(
             api.get_campaign(ctx, acc, int(campaign_id)),
+            api.get_ad_groups(ctx, acc, int(campaign_id)),
             ctx.skeleton.get(SECTION),
         )
     except Exception as exc:
@@ -47,8 +48,8 @@ async def panel_campaign_detail(
         ])
 
     skel      = skel or {}
-    campaign  = camp_data.get("campaign", camp_data)
-    ad_groups = camp_data.get("ad_groups", [])
+    campaign  = camp_data.get("campaign", camp_data)   # unwrap {"campaign": {...}}
+    ad_groups = ag_data.get("ad_groups", [])
     currency  = skel.get("currency", acc.get("currency", "$"))
 
     status    = campaign.get("status", "")

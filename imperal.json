@@ -1,11 +1,11 @@
 {
   "app_id": "microsoft-ads",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "capabilities": ["store:read", "store:write", "notify:push", "ai:complete"],
   "tools": [
     {
       "name": "tool_msads_chat",
-      "description": "Microsoft Ads — connect account, manage campaigns, ad groups, RSA ads, keywords, performance reports, keyword research via AdInsight, budget monitoring, AI performance analysis.",
+      "description": "Microsoft Ads — connect account, manage campaigns (Search/Shopping/PMax/DSA/Audience), ad groups, RSA ads, keywords (add/pause/resume/delete/research/bid estimates), negative keywords (list/add/remove), performance reports (campaign/keyword/search-terms/budget/account), AI performance analysis, delete campaigns.",
       "scopes": ["*"],
       "parameters": {
         "message": {"type": "string", "required": false},

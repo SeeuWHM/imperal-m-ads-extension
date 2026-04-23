@@ -12,6 +12,12 @@ from pydantic import BaseModel, Field
 from app import chat, ActionResult, _get_ready_account
 import msads_providers.msads_client as api
 
+# ─── Additional model ─────────────────────────────────────────────────────── #
+
+class DeleteCampaignParams(BaseModel):
+    """Permanently delete a campaign."""
+    campaign_id: str = Field(description="Campaign ID to delete")
+
 # ─── Models ──────────────────────────────────────────────────────────── #
 
 class ListCampaignsParams(BaseModel):
@@ -97,14 +103,18 @@ async def fn_get_campaign(ctx, params: CampaignIdParams) -> ActionResult:
     if err:
         return err
     try:
-        campaign = await api.get_campaign(ctx, acc, int(params.campaign_id))
-        ad_groups = await api.get_ad_groups(ctx, acc, int(params.campaign_id))
+        campaign_resp  = await api.get_campaign(ctx, acc, int(params.campaign_id))
+        ad_groups_resp = await api.get_ad_groups(ctx, acc, int(params.campaign_id))
     except Exception as exc:
         return ActionResult.error(str(exc)[:200], retryable=True)
+
+    campaign  = campaign_resp.get("campaign", campaign_resp)   # unwrap {"campaign": {...}}
+    ad_groups = ad_groups_resp.get("ad_groups", [])
+
     return ActionResult.success(
         data={
-            "campaign":  campaign,
-            "ad_groups": ad_groups.get("ad_groups", []),
+            "campaign":    campaign,
+            "ad_groups":   ad_groups,
             "campaign_id": params.campaign_id,
         },
         summary=f"Campaign details loaded.",
@@ -143,7 +153,12 @@ async def fn_create_campaign(ctx, params: CreateCampaignParams) -> ActionResult:
     except Exception as exc:
         return ActionResult.error(str(exc)[:200], retryable=False)
 
-    campaign_id = result.get("campaign_id") or result.get("id")
+    # Microservice returns {"campaign": {...}, "message": "..."}
+    campaign_id = (
+        result.get("campaign", {}).get("id")
+        or result.get("campaign_id")
+        or result.get("id")
+    )
     return ActionResult.success(
         data={
             "campaign_id":   str(campaign_id),
@@ -236,4 +251,29 @@ async def fn_resume_campaign(ctx, params: CampaignIdParams) -> ActionResult:
     return ActionResult.success(
         data={"campaign_id": params.campaign_id, "status": "Active"},
         summary=f"Campaign {params.campaign_id} resumed.",
+    )
+
+
+# ─── delete_campaign ──────────────────────────────────────────────────── #
+
+@chat.function(
+    "delete_campaign",
+    action_type="destructive",
+    event="campaign.deleted",
+    description=(
+        "Permanently delete a campaign and all its ad groups, ads, and keywords. "
+        "This action is irreversible. Always confirm with the user before calling."
+    ),
+)
+async def fn_delete_campaign(ctx, params: DeleteCampaignParams) -> ActionResult:
+    acc, err = await _get_ready_account(ctx)
+    if err:
+        return err
+    try:
+        await api.delete_campaign(ctx, acc, int(params.campaign_id))
+    except Exception as exc:
+        return ActionResult.error(str(exc)[:200], retryable=False)
+    return ActionResult.success(
+        data={"campaign_id": params.campaign_id, "deleted": True},
+        summary=f"Campaign {params.campaign_id} permanently deleted.",
     )

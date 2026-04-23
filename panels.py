@@ -55,6 +55,7 @@ async def panel_account_dashboard(
                         "account_name": target["account_name"],
                         "currency":     target.get("currency", "USD"),
                         "_needs_setup": False,
+                        "is_active":    True,
                     })
                 except Exception:
                     pass
@@ -114,6 +115,7 @@ async def panel_account_dashboard(
                         "account_name": target["account_name"],
                         "currency":     target.get("currency", "USD"),
                         "_needs_setup": False,
+                        "is_active":    True,
                     })
                 except Exception:
                     pass

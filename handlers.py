@@ -34,7 +34,14 @@ class SetupAccountParams(BaseModel):
 
 class AccountParams(BaseModel):
     """Target a specific account by ID or name."""
-    account: str = Field(description="Account ID or account name")
+    account: str = Field(
+        default="",
+        description=(
+            "Account ID or account name to target. "
+            "Omit (or leave empty) when only one account is connected — "
+            "the single account is used automatically."
+        ),
+    )
 
 
 # ─── connect ─────────────────────────────────────────────────────────── #
@@ -201,6 +208,7 @@ async def fn_setup_account(ctx, params: SetupAccountParams) -> ActionResult:
             "account_name": target["account_name"],
             "currency":     target.get("currency", "USD"),
             "_needs_setup": False,
+            "is_active":    True,
         })
     except Exception as e:
         return ActionResult.error(f"Failed to save account: {str(e)[:120]}", retryable=False)
