@@ -41,7 +41,7 @@ def _build_detail_view(
             campaign_badge(status),
         ], direction="h", gap=2),
         ui.Text(
-            content=f"ID: {campaign_id}  ·  {camp_type}" if camp_type else f"ID: {campaign_id}",
+            content=f"ID: {campaign_id}  ·  Type: {camp_type}" if camp_type else f"ID: {campaign_id}",
             variant="caption",
         ),
     ])
@@ -94,7 +94,7 @@ def _build_detail_view(
             ),
         ),
         ui.Button("AI Analyse", icon="Sparkles", variant="ghost",
-                  on_click=ui.Send(f"Analyse performance of campaign '{camp_name}'")),
+                  on_click=ui.Call("analyze_performance", focus="general")),
     ], direction="h", gap=2, sticky=True)
 
     return ui.Stack([header, ui.Divider(), settings_stats, ui.Divider(),
