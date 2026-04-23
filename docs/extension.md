@@ -4,7 +4,7 @@
 **Extension ID:** `microsoft-ads` | **Tool:** `tool_msads_chat`
 **Production:** `/opt/extensions/microsoft-ads/` on `whm-ai-worker`
 **Git:** `github.com/SeeuWHM/imperal-m-ads-extension` | **SSH alias:** `github-m-ads`
-**Latest commit:** `e2f18f1`
+**Latest commit:** `611052b`
 
 ---
 
@@ -124,6 +124,41 @@ microsoft-ads/
 
 ---
 
+## Store Structure
+
+**Collection:** `msads_accounts` (one document per connected Microsoft Ads account per user)
+
+```python
+# Document fields stored in ext_store:
+{
+    "display_name":  str,   # "Web Host Most, LLC" or "Microsoft Ads User" (fallback)
+    "provider":      str,   # always "microsoft-ads"
+    "access_token":  str,   # OAuth access token (expires in ~1 hour)
+    "refresh_token": str,   # OAuth refresh token (used to get new access_token)
+    "expires_at":    int,   # Unix timestamp when access_token expires
+    "customer_id":   str,   # Microsoft Ads customer ID (set by setup_account)
+    "account_id":    str,   # Microsoft Ads account ID (set by setup_account)
+    "account_name":  str,   # Account display name (set by setup_account)
+    "currency":      str,   # e.g. "USD" (set by setup_account)
+    "is_active":     bool,  # True = this is the active account for API calls
+    "_needs_setup":  bool,  # True = OAuth done, account not selected yet
+    "_needs_reauth": bool,  # True = refresh_token expired, user must re-auth
+}
+```
+
+**Account states:**
+- `_needs_setup=True`: OAuth completed, `customer_id`/`account_id` empty → panel shows account picker
+- `_needs_setup=False, _needs_reauth=False`: fully active → API calls work
+- `_needs_reauth=True`: refresh_token returned 400 → set by `token_refresh.py` → user must reconnect
+
+**Token refresh logic (`msads_providers/token_refresh.py`):**
+- `_refresh_token_if_needed(ctx, acc)`: refreshes if `expires_at < now + 120s` (2-minute buffer)
+- Called automatically before every API call in `_get()/_post()/_patch()/_delete()`
+- On 400 from Microsoft: sets `_needs_reauth=True` in store, returns acc unchanged
+- On transient errors: logs warning, returns acc unchanged (does not fail the request)
+
+---
+
 ## Skeleton
 
 | Tool | Section | TTL | Returns |
@@ -179,6 +214,45 @@ git push origin main
 # Developer Portal: Deploy tab → select latest commit
 # Then: imperal-platform-worker@{1..3} restart needed for new code
 ```
+
+---
+
+## panels_ui.py — Shared Helpers Reference
+
+| Function/Constant | Description |
+|------------------|-------------|
+| `fmt_currency(amount, currency)` | `"$1.23"` — currency symbol + 2 decimal places |
+| `fmt_pct(value, decimals=1)` | `"3.2%"` — percentage with configurable decimals |
+| `fmt_number(value)` | `"1,204"` — integer with thousands separator |
+| `campaign_badge(status)` | Returns `ui.Badge` with color: Active=green, Paused=gray, Deleted=red, Draft=yellow |
+| `not_connected_view(ctx)` | Full not-connected state UI with OAuth Connect button |
+| `error_view(msg, ctx)` | Error state UI with Reconnect button |
+| `_build_oauth_url(ctx)` | Builds the full OAuth URL with state, prompt=select_account |
+| `DATE_OPTS` | List of date range preset dicts for use in `ui.Select` |
+| `date_range(preset)` | Converts preset string → `(start_date, end_date)` ISO tuple |
+
+**Date presets in `DATE_OPTS`:**
+- `"TODAY"` → today / today
+- `"LAST_7_DAYS"` → 6 days ago / today
+- `"LAST_30_DAYS"` → 29 days ago / today
+- `"THIS_MONTH"` → 1st of month / today
+- `"LAST_MONTH"` → 1st of prev month / last day of prev month
+
+---
+
+## Health Check
+
+`app.py` registers `@ext.health_check` that returns:
+```python
+{
+    "status":             "ok" | "degraded",
+    "version":            "1.1.0",
+    "accounts_connected": int,
+    "oauth_configured":   bool,
+    "microservice":       "ok" | "degraded" | "unreachable",
+}
+```
+**Known warning:** `'list' object has no attribute 'data'` in skeleton_store health check — kernel-level bug, not extension code. Does not affect functionality.
 
 ---
 

@@ -58,6 +58,38 @@ Read these directly when you need them — always up-to-date:
 
 ---
 
+## Helpers available in `panels_ui.py`
+
+These are already implemented — import and use them, don't re-implement:
+
+```python
+from panels_ui import (
+    fmt_currency,    # fmt_currency(1234.5, "USD") → "$1234.50"
+    fmt_pct,         # fmt_pct(3.256) → "3.3%"  (1 decimal default)
+    fmt_number,      # fmt_number(1204) → "1,204"
+    campaign_badge,  # campaign_badge("Active") → ui.Badge(green)
+                     # campaign_badge("Paused") → ui.Badge(gray)
+                     # campaign_badge("Deleted") → ui.Badge(red)
+    not_connected_view,  # full not-connected UI state
+    error_view,          # error UI with reconnect button
+    DATE_OPTS,       # list of date range presets for ui.Select
+    date_range,      # date_range("LAST_7_DAYS") → ("2026-04-17", "2026-04-24")
+)
+```
+
+**`DATE_OPTS`** — use in a date range picker:
+```python
+DATE_OPTS = [
+    {"value": "TODAY",        "label": "Today"},
+    {"value": "LAST_7_DAYS",  "label": "Last 7 days"},
+    {"value": "LAST_30_DAYS", "label": "Last 30 days"},
+    {"value": "THIS_MONTH",   "label": "This month"},
+    {"value": "LAST_MONTH",   "label": "Last month"},
+]
+```
+
+---
+
 ## Data available in panels
 
 ### Left panel — `panels.py`

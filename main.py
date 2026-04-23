@@ -1,4 +1,4 @@
-"""Microsoft Ads Extension v1.0.0 · Microsoft Advertising AI management."""
+"""Microsoft Ads Extension v1.1.0 · Microsoft Advertising AI management."""
 from __future__ import annotations
 
 import sys

@@ -27,7 +27,7 @@ SYSTEM_PROMPT = (Path(__file__).parent / "system_prompt.txt").read_text()
 
 ext = Extension(
     "microsoft-ads",
-    version="1.0.0",
+    version="1.1.0",
     capabilities=["store:read", "store:write", "notify:push", "ai:complete"],
 )
 
@@ -36,9 +36,11 @@ chat = ChatExtension(
     tool_name="tool_msads_chat",
     description=(
         "Microsoft Ads — connect account via OAuth, manage campaigns "
-        "(Search/Shopping/PMax/DSA), ad groups, RSA ads, keywords, bid strategies, "
-        "performance reports (campaign/keyword/search-terms/budget), keyword research "
-        "via AdInsight, bid estimates, budget monitoring, AI performance analysis."
+        "(Search/Shopping/PMax/DSA/Audience), ad groups, RSA ads, "
+        "keywords (add/pause/resume/delete/research/bid estimates), "
+        "negative keywords (list/add/remove at campaign and ad group level), "
+        "performance reports (campaign/keyword/search-terms/budget/account summary), "
+        "delete campaigns, AI performance analysis."
     ),
     system_prompt=SYSTEM_PROMPT,
     model="claude-haiku-4-5-20251001",
