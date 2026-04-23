@@ -54,16 +54,33 @@ def _build_detail_view(
                 color="green" if is_active else "gray"),
     ])
 
-    # ── Tabs ──────────────────────────────────────────────────────────── #
-    overview_tab = _build_overview_tab(
-        budget, today_spend, report_data, report_range, currency, campaign_id,
-    )
-    ag_tab = _build_ag_tab(ad_groups, currency, campaign_id, camp_name)
+    # ── Tab selector (manual, fill container, no wrap) ────────────────── #
+    tab_bar = ui.Stack([
+        ui.Button(
+            "Overview",
+            variant="primary" if active_tab == 0 else "ghost",
+            full_width=True,
+            on_click=ui.Call("__panel__campaign_detail",
+                             campaign_id=campaign_id, active_tab=0,
+                             report_range=report_range),
+        ),
+        ui.Button(
+            f"Ad Groups ({len(ad_groups)})",
+            variant="primary" if active_tab == 1 else "ghost",
+            full_width=True,
+            on_click=ui.Call("__panel__campaign_detail",
+                             campaign_id=campaign_id, active_tab=1,
+                             report_range=report_range),
+        ),
+    ], direction="h", gap=1, wrap=False)
 
-    tabs = ui.Tabs(tabs=[
-        {"label": "Overview",                      "content": [overview_tab]},
-        {"label": f"Ad Groups ({len(ad_groups)})", "content": [ag_tab]},
-    ], default_tab=active_tab)
+    # ── Tab content ───────────────────────────────────────────────────── #
+    if active_tab == 1:
+        tab_content = _build_ag_tab(ad_groups, currency, campaign_id, camp_name)
+    else:
+        tab_content = _build_overview_tab(
+            budget, today_spend, report_data, report_range, currency, campaign_id,
+        )
 
     # ── Sticky footer ─────────────────────────────────────────────────── #
     footer = ui.Stack([
@@ -80,7 +97,8 @@ def _build_detail_view(
                   on_click=ui.Send(f"Analyse performance of campaign '{camp_name}'")),
     ], direction="h", gap=2, sticky=True)
 
-    return ui.Stack([header, ui.Divider(), settings_stats, ui.Divider(), tabs, footer])
+    return ui.Stack([header, ui.Divider(), settings_stats, ui.Divider(),
+                     tab_bar, tab_content, footer])
 
 
 # ─── Period filter ────────────────────────────────────────────────────── #
@@ -211,7 +229,7 @@ def _build_ag_tab(
         ))
 
     return ui.Stack([
-        ui.List(items=items, searchable=True),
+        ui.List(items=items),
         ui.Button("+ Ad Group", icon="Plus", variant="ghost",
                   on_click=ui.Send(f"Create an ad group in campaign '{camp_name}'")),
     ])
