@@ -160,24 +160,29 @@ async def fn_get_budget_status(ctx) -> ActionResult:
         return err
 
     today = date.today().isoformat()
+    import asyncio as _asyncio
+
+    # Fetch campaign list (required). Fetch today's spend report (optional —
+    # CampaignPerformanceReport may fail with Basic Developer Token; we degrade
+    # gracefully showing budget without live spend rather than returning an error).
     try:
-        # GET /v1/campaigns → campaign list with daily_budget, status, name, id
-        # GET /v1/reports/campaign (Summary, today) → Spend per CampaignId
-        # Both calls run in parallel for performance.
-        import asyncio as _asyncio
-        campaigns_resp, spend_resp = await _asyncio.gather(
-            api.get_campaigns(ctx, acc),
-            api.get_report(
-                ctx, acc, "campaign",
-                start_date=today, end_date=today,
-                aggregation="Summary",
-            ),
-        )
+        campaigns_resp = await api.get_campaigns(ctx, acc)
     except Exception as exc:
         return ActionResult.error(str(exc)[:200], retryable=True)
 
-    camp_list  = campaigns_resp.get("campaigns", [])
-    spend_rows = spend_resp.get("rows", spend_resp.get("data", []))
+    spend_rows: list = []
+    spend_available = True
+    try:
+        spend_resp = await api.get_report(
+            ctx, acc, "campaign",
+            start_date=today, end_date=today,
+            aggregation="Summary",
+        )
+        spend_rows = spend_resp.get("rows", spend_resp.get("data", []))
+    except Exception:
+        spend_available = False
+
+    camp_list = campaigns_resp.get("campaigns", [])
 
     # Build spend lookup: CampaignId (PascalCase — Microsoft API) → Spend value
     spend_map: dict[str, float] = {
@@ -204,12 +209,14 @@ async def fn_get_budget_status(ctx) -> ActionResult:
 
     result.sort(key=lambda x: x["pct_used"], reverse=True)
     alerts = [r for r in result if r["alert"]]
+
+    note = " (live spend unavailable — today's pct_used may be inaccurate)" if not spend_available else ""
     return ActionResult.success(
-        data={"campaigns": result, "alerts": alerts, "date": today},
+        data={"campaigns": result, "alerts": alerts, "date": today, "spend_available": spend_available},
         summary=(
-            f"Budget status: {len(alerts)} campaign(s) near limit."
+            f"Budget status: {len(alerts)} campaign(s) near limit.{note}"
             if alerts else
-            f"Budget status: {len(result)} campaign(s), all within budget."
+            f"Budget status: {len(result)} campaign(s).{note}"
         ),
     )
 

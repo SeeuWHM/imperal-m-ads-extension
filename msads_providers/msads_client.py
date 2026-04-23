@@ -146,8 +146,9 @@ async def create_ad(ctx: Context, acc: dict, data: dict) -> dict:
     return await _post(ctx, acc, "/v1/ads", data)
 
 
-async def update_ad(ctx: Context, acc: dict, ad_id: int, data: dict) -> dict:
-    return await _patch(ctx, acc, f"/v1/ads/{ad_id}", data)
+async def update_ad(ctx: Context, acc: dict, ad_id: int, ad_group_id: int, data: dict) -> dict:
+    # ad_group_id is a required query param: PATCH /v1/ads/{ad_id}?ad_group_id=N
+    return await _patch(ctx, acc, f"/v1/ads/{ad_id}", data, params={"ad_group_id": ad_group_id})
 
 
 # ─── Keywords ────────────────────────────────────────────────────────── #

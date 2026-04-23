@@ -169,11 +169,13 @@ async def fn_create_ad(ctx, params: CreateAdParams) -> ActionResult:
     if len(params.descriptions) < 2:
         return ActionResult.error("At least 2 descriptions are required.", retryable=False)
 
+    # Microservice RSACreate expects HeadlineAsset / DescriptionAsset dicts
+    # and final_urls as a list (plural), not a single string.
     body = {
         "ad_group_id":  int(params.ad_group_id),
-        "headlines":    params.headlines,
-        "descriptions": params.descriptions,
-        "final_url":    params.final_url,
+        "headlines":    [{"text": h} for h in params.headlines],
+        "descriptions": [{"text": d} for d in params.descriptions],
+        "final_urls":   [params.final_url],
     }
     if params.path1:
         body["path1"] = params.path1
@@ -216,24 +218,25 @@ async def fn_update_ad(ctx, params: UpdateAdParams) -> ActionResult:
     if err:
         return err
 
-    body: dict = {"ad_group_id": int(params.ad_group_id)}
-    if params.headlines    is not None:
-        body["headlines"]    = params.headlines
+    # ad_group_id goes as a query param (not in body) — PATCH /v1/ads/{id}?ad_group_id=N
+    body: dict = {}
+    if params.headlines is not None:
+        body["headlines"]    = [{"text": h} for h in params.headlines]
     if params.descriptions is not None:
-        body["descriptions"] = params.descriptions
-    if params.final_url    is not None:
-        body["final_url"]    = params.final_url
+        body["descriptions"] = [{"text": d} for d in params.descriptions]
+    if params.final_url is not None:
+        body["final_urls"]   = [params.final_url]   # plural list
 
-    if len(body) == 1:  # only ad_group_id
+    if not body:
         return ActionResult.error("No fields to update provided.", retryable=False)
 
     try:
-        await api.update_ad(ctx, acc, int(params.ad_id), body)
+        await api.update_ad(ctx, acc, int(params.ad_id), int(params.ad_group_id), body)
     except Exception as exc:
         return ActionResult.error(str(exc)[:200], retryable=True)
 
     return ActionResult.success(
         data={"ad_id": params.ad_id, "ad_group_id": params.ad_group_id,
-              "updated_fields": [k for k in body if k != "ad_group_id"]},
+              "updated_fields": list(body.keys())},
         summary=f"Ad {params.ad_id} updated.",
     )
