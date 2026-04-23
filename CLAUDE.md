@@ -169,66 +169,179 @@ ui.Open(url)   # for OAuth button
 
 ---
 
-## Git workflow — all allowed commands
+## Git workflow — step by step, no exceptions
 
-You work in **feature branches only**. Never push directly to `main`.
+> Follow this exactly. If something looks different from what's described — stop and ask SeeU.
 
-### Setup (first time)
+---
+
+### First time setup
+
 ```bash
-git clone git@github.com:SeeuWHM/imperal-m-ads-extension.git
+# 1. Add the SSH key (SeeU gave you a file called denchik_msads_ed25519)
+mkdir -p ~/.ssh
+cp denchik_msads_ed25519 ~/.ssh/denchik_msads_ed25519
+chmod 600 ~/.ssh/denchik_msads_ed25519
+
+# 2. Tell SSH to use this key for GitHub
+cat >> ~/.ssh/config << 'EOF'
+Host github-msads
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/denchik_msads_ed25519
+EOF
+
+# 3. Clone the repo
+git clone git@github-msads:SeeuWHM/imperal-m-ads-extension.git
 cd imperal-m-ads-extension
 ```
 
-### Daily workflow
+---
+
+### Every time you start working
+
 ```bash
-# See current state
+# Step 1 — always check where you are
+git status
+git branch          # must show you're on a branch like ui/something, NOT main
+
+# Step 2 — get the latest from SeeU
+git fetch origin
+git merge origin/main   # only if you're on your feature branch
+```
+
+---
+
+### Starting work on something new
+
+```bash
+# ALWAYS create a branch before changing any file
+# Branch name format: ui/<what-you-are-building>
+git checkout -b ui/account-dashboard
+git checkout -b ui/campaign-detail
+git checkout -b ui/not-connected-view
+git checkout -b ui/badges-and-formatters
+
+# Verify you are on the new branch (not main!)
+git branch
+# Should show:  * ui/account-dashboard
+```
+
+---
+
+### Saving your work (commit)
+
+```bash
+# Step 1 — check what you changed
 git status
 git diff
 
-# Create a feature branch
-git checkout -b ui/account-dashboard
-git checkout -b ui/campaign-detail
-git checkout -b ui/design-tokens
-
-# Stage your files (only panel files + docs)
-git add panels.py panels_campaign.py panels_ui.py
+# Step 2 — add ONLY your files (copy these exact commands)
+git add panels.py
+git add panels_campaign.py
+git add panels_ui.py
 git add docs/frontend.md
 
-# Commit
-git commit -m "ui: redesign account dashboard with budget progress bar"
-git commit -m "ui: campaign detail tabs — Today and Ad Groups"
-git commit -m "docs: update frontend status"
+# NEVER run: git add .
+# NEVER run: git add -A
+# NEVER run: git add handlers.py or any handlers_*.py file
+# NEVER run: git add main.py
+# NEVER run: git add app.py
+# NEVER run: git add imperal.json
+# NEVER run: git add system_prompt.txt
+# NEVER run: git add msads_providers/
 
-# Push your branch
-git push origin ui/account-dashboard
+# Step 3 — verify only your files are staged
+git status
+# Should only show panels.py, panels_campaign.py, panels_ui.py, docs/frontend.md
 
-# View history
-git log --oneline -10
+# Step 4 — syntax check before committing
+python3 -m py_compile panels.py
+python3 -m py_compile panels_campaign.py
+python3 -m py_compile panels_ui.py
+# If any of these prints an error — fix it before committing
 
-# Switch between branches
-git checkout main
-git checkout ui/account-dashboard
-
-# Get latest from main
-git fetch origin
-git merge origin/main
-
-# See all branches
-git branch -a
+# Step 5 — commit with a clear message
+git commit -m "ui: redesign account dashboard — budget progress bar + KPI stats"
+git commit -m "ui: campaign detail — Today tab with spend chart"
+git commit -m "ui: not-connected view — connect button with icon"
+git commit -m "docs: update frontend status and design decisions"
 ```
 
-### Commit message format
+**Commit message format:**
 ```
-ui: <what you changed>          — panel/design changes
-docs: <what you documented>     — frontend.md updates
-fix: <what you fixed>           — bug in panel logic
+ui: <what you built or changed>    ← for panel changes
+docs: <what you documented>        ← for frontend.md only
+fix: <what you fixed>              ← for bug fixes in panels
 ```
 
-### After push
-Open a Pull Request on GitHub → `ui/<your-branch>` → `main`.
-SeeU reviews and merges. SeeU deploys via Developer Portal.
+---
 
-**You never run:** `git push origin main` · `systemctl` · any server commands.
+### Sending your work to SeeU (push)
+
+```bash
+# Step 1 — verify you are NOT on main
+git branch
+# Must show: * ui/your-branch-name
+# If it shows: * main — STOP. Do not push. Create a branch first.
+
+# Step 2 — push your branch
+git push origin ui/account-dashboard   # use your actual branch name
+
+# Step 3 — open a Pull Request
+# Go to: https://github.com/SeeuWHM/imperal-m-ads-extension
+# Click "Compare & pull request"
+# Base: main ← Compare: ui/your-branch
+# Add a description of what you changed
+# Click "Create pull request"
+```
+
+SeeU will review, merge, and deploy. You don't need to do anything after the PR.
+
+---
+
+### Useful commands
+
+```bash
+git log --oneline -10    # see last 10 commits
+git diff                 # see what you changed (not yet staged)
+git diff --cached        # see what is staged for commit
+git branch -a            # see all branches
+git stash                # temporarily save work without committing
+git stash pop            # bring it back
+```
+
+---
+
+### ⛔ Commands you must NEVER run
+
+```bash
+git push origin main          # NEVER — SeeU merges to main, not you
+git push --force              # NEVER
+git reset --hard              # NEVER — destroys your work
+git checkout -- .             # NEVER — destroys your changes
+git add .                     # NEVER — might accidentally stage backend files
+git add -A                    # NEVER — same reason
+```
+
+---
+
+### If something went wrong
+
+```bash
+# See what happened
+git status
+git log --oneline -5
+
+# Undo last commit (keeps your changes, just undoes the commit)
+git reset HEAD~1
+
+# If you accidentally staged wrong files — unstage them
+git restore --staged handlers.py
+git restore --staged main.py
+```
+
+If you're not sure what to do — **stop and ask SeeU** before running anything.
 
 ---
 
