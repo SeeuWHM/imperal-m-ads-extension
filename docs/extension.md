@@ -4,7 +4,7 @@
 **Extension ID:** `microsoft-ads` | **Tool:** `tool_msads_chat`
 **Production:** `/opt/extensions/microsoft-ads/` on `whm-ai-worker`
 **Git:** `github.com/SeeuWHM/imperal-m-ads-extension` | **SSH alias:** `github-m-ads`
-**Latest commit:** `cd04439`
+**Latest commit:** `e2f18f1`
 
 ---
 

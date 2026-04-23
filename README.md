@@ -1,13 +1,13 @@
 # imperal-m-ads-extension
 
 [![Imperal SDK](https://img.shields.io/badge/imperal--sdk-1.5.0-blue)](https://pypi.org/project/imperal-sdk/)
-[![Version](https://img.shields.io/badge/version-1.0.0-green)](https://github.com/SeeuWHM/imperal-m-ads-extension/releases)
-[![License](https://img.shields.io/badge/license-LGPL--2.1-orange)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.1.0-green)](https://github.com/SeeuWHM/imperal-m-ads-extension/releases)
 [![Platform](https://img.shields.io/badge/platform-Imperal%20Cloud-purple)](https://panel.imperal.io)
 
 **Microsoft Advertising AI manager extension for [Imperal Cloud](https://panel.imperal.io).**
 
-Connect your Microsoft Ads account via OAuth and manage campaigns, ad groups, keywords, and performance reports through natural language.
+Connect your Microsoft Ads account via OAuth and manage campaigns, ad groups, keywords,
+negative keywords, and performance reports through natural language.
 
 ---
 
@@ -16,65 +16,78 @@ Connect your Microsoft Ads account via OAuth and manage campaigns, ad groups, ke
 Talk to it naturally:
 
 ```
-"connect my Microsoft Ads account"
 "show me all campaigns"
 "pause the Summer Sale campaign"
 "create a Search campaign with $50 daily budget"
+"add negative keywords: free, tutorial, cheap"
 "what keywords have the lowest quality score?"
+"pause keyword 123456 in ad group 789"
 "give me performance for last 7 days"
 "research keywords for cloud hosting"
-"why is my CTR dropping?"
+"analyze my campaign performance and give recommendations"
 ```
 
-Or manage campaigns from the panel — left sidebar shows account KPIs and campaign list, right panel shows campaign detail, ad groups, and performance reports.
+Or manage from the panel — left sidebar shows account KPIs, budget bar, and campaign list;
+right panel shows campaign detail, ad groups, and today's performance.
 
 ---
 
 ## Capabilities
 
 ### Account Management
-| Action | Description |
-|--------|-------------|
-| **connect** | OAuth2 authorization via Microsoft Azure (client_id `dd2bfaf0`) |
-| **status** | Current account, today's KPIs, budget alerts |
-| **setup_account** | Post-OAuth: discover and activate an ad account |
-| **switch_account** | Switch between multiple connected accounts |
-| **disconnect** | Remove account credentials |
+| Function | Description |
+|----------|-------------|
+| `connect` | OAuth2 via Microsoft Azure (Azure App `c885090c`) |
+| `status` | Current account info + today's KPIs from skeleton |
+| `setup_account` | Post-OAuth: discover and activate an ad account |
+| `switch_account` | Switch between multiple connected accounts |
+| `disconnect` | Remove account credentials from store |
 
 ### Campaigns
-| Action | Description |
-|--------|-------------|
-| **list_campaigns** | All campaigns with budget, status, spend |
-| **get_campaign** | Campaign detail + ad groups |
-| **create_campaign** | Search / Shopping / Audience / DSA / PMax |
-| **update_campaign** | Budget, status, bid strategy |
-| **pause_campaign** | One-click pause |
-| **resume_campaign** | One-click resume |
+| Function | Description |
+|----------|-------------|
+| `list_campaigns` | All campaigns with budget and status |
+| `get_campaign` | Campaign detail + ad groups |
+| `create_campaign` | Search / Shopping / Audience / DSA / PerformanceMax |
+| `update_campaign` | Budget, status, bid strategy, tracking |
+| `pause_campaign` | Set status → Paused |
+| `resume_campaign` | Set status → Active |
+| `delete_campaign` | Permanently delete a campaign |
 
 ### Ad Groups & Ads
-| Action | Description |
-|--------|-------------|
-| **list_ad_groups** | Ad groups by campaign |
-| **create_ad_group** | With language and bid |
-| **list_ads** | Ads by ad group |
-| **create_ad** | RSA: ≥3 headlines, ≥2 descriptions |
-| **update_ad** | Replace headlines / descriptions / URL |
+| Function | Description |
+|----------|-------------|
+| `list_ad_groups` | Ad groups by campaign ID |
+| `create_ad_group` | With language, CPC bid, network |
+| `list_ads` | Ads by ad group ID |
+| `create_ad` | RSA: ≥3 headlines (max 30 chars), ≥2 descriptions (max 90 chars) |
+| `update_ad` | Replace headlines / descriptions / final_urls |
 
 ### Keywords
-| Action | Description |
-|--------|-------------|
-| **list_keywords** | By ad group — match type, quality score |
-| **add_keywords** | Bulk: text + match_type + bid |
-| **research_keywords** | AdInsight: ideas from seed keywords or URL |
-| **get_bid_estimates** | MainLine1 / MainLine / FirstPage positions |
+| Function | Description |
+|----------|-------------|
+| `list_keywords` | By ad group — text, match type, bid, quality score |
+| `add_keywords` | Bulk: text + match_type (Broad/Phrase/Exact) + optional bid |
+| `pause_keyword` | Pause — requires keyword_id + ad_group_id |
+| `resume_keyword` | Resume — requires keyword_id + ad_group_id |
+| `delete_keyword` | Permanently delete |
+| `research_keywords` | AdInsight: keyword ideas from seed keywords or URL |
+| `get_bid_estimates` | Bid needed for MainLine1 / MainLine / FirstPage positions |
+
+### Negative Keywords
+| Function | Description |
+|----------|-------------|
+| `list_negative_keywords` | List by campaign ID or ad group ID |
+| `add_negative_keywords` | Add Phrase/Exact negatives at Campaign or AdGroup level |
+| `remove_negative_keywords` | Delete by negative keyword IDs |
 
 ### Reports & AI Analysis
-| Action | Description |
-|--------|-------------|
-| **get_performance** | Campaign / ad-group / keyword / summary, any date range |
-| **get_search_terms** | Actual user search queries triggering your ads |
-| **get_budget_status** | Today: spend vs budget, over/under-pacing |
-| **analyze_performance** | AI insights via `ctx.ai` — trends, recommendations |
+| Function | Description |
+|----------|-------------|
+| `get_performance` | Campaign / ad-group / keyword / summary, any date range |
+| `get_search_terms` | Actual search queries triggering your ads |
+| `get_budget_status` | Today's spend vs budget for all campaigns |
+| `analyze_performance` | AI insights via `ctx.ai` — trends, recommendations |
 
 ---
 
@@ -83,20 +96,48 @@ Or manage campaigns from the panel — left sidebar shows account KPIs and campa
 Built on [Imperal Declarative UI](https://github.com/imperalcloud/imperal-sdk).
 
 ```
-┌──── Left Panel (account_dashboard) ───────┐  ┌──── Right Panel ───────────────────────────┐
-│  Microsoft Ads                            │  │  Campaign Detail / Reports                  │
-│  ─────────────────────────────────────    │  │  ─────────────────────────────────────────  │
-│  Spend      Clicks   CTR      CPC         │  │  [Campaign Detail tab]                      │
-│  $142.30    1,204    2.8%     $0.12       │  │  Summer Sale · ACTIVE · $50/day             │
-│  ███████░░░ 71% of $200 budget            │  │  Ad Groups (3)                              │
-│  ─────────────────────────────────────    │  │    > Generic Search  · 15 keywords          │
-│  Campaigns (4)                            │  │    > Brand Terms     · 8 keywords           │
-│    Summer Sale      ACTIVE   $142/200     │  │    > Competitor      · 6 keywords           │
-│    Brand Campaign   ACTIVE   $18/30       │  │                                             │
-│    Retargeting      PAUSED   —            │  │  [Reports tab]                              │
-│    Shopping DE      ACTIVE   $67/100      │  │  Performance · Budget · Keyword Research    │
-└───────────────────────────────────────────┘  └─────────────────────────────────────────────┘
+┌──── Left Panel (account_dashboard) ───────┐  ┌──── Right Panel (campaign_detail) ─────────┐
+│  Web Host Most, LLC          ID: 187...   │  │  Summer Sale                    · ACTIVE    │
+│  ─────────────────────────────────────    │  │  ID: 524140349  ·  Search                   │
+│  $142.30    1,204    2.8%     $0.12       │  │  ─────────────────────────────────────────  │
+│  Spend      Clicks   CTR      CPC         │  │  $50/day  ·  Max Clicks  ·  Active           │
+│  ███████░░░░  71% of $200 budget          │  │  ─────────────────────────────────────────  │
+│  ─────────────────────────────────────    │  │  [ Today ] [ Ad Groups (3) ]                │
+│  CAMPAIGNS · 3 active  1 paused           │  │                                             │
+│    Summer Sale      ACTIVE   [$50/day]    │  │  Today tab:                                 │
+│    Brand Campaign   ACTIVE   [$30/day]    │  │    Spend vs Budget chart                    │
+│    Retargeting      PAUSED   [$100/day]   │  │    Spend · Clicks · CTR · CPC               │
+│    Shopping DE      ACTIVE   [$100/day]   │  │                                             │
+│                               [+Campaign] │  │  Ad Groups tab:                             │
+└───────────────────────────────────────────┘  │    Generic Search  · cpc: $1.00             │
+                                               │    Brand Terms     · cpc: $2.50             │
+                                               └─────────────────────────────────────────────┘
 ```
+
+**Left panel states:** not_connected → OAuth → needs_setup (account picker) → dashboard
+**Right panel states:** empty (no campaign selected) → loading → campaign detail
+
+---
+
+## Architecture
+
+```
+User (panel)
+    ↓ ui.Open(oauth_url) — panel-driven, no chat required
+Microsoft Azure (app c885090c, /common/ tenant)
+    ↓ callback → Auth Gateway /v1/oauth/microsoft-ads/callback
+    ↓ tokens stored in ext_store["msads_accounts"]
+Panel auto-setup: list_customers_for_token → activate account
+    ↓ Extension HTTP → whm-microsoft-ads-control (api-server:8090)
+    X-Ms-Access-Token + X-Ms-Customer-Id + X-Ms-Account-Id headers
+    ↓ microservice middleware → UserMicrosoftAdsClient → BingAds SOAP API v13
+```
+
+**OAuth flow (panel-driven, no chat):**
+1. Panel renders Connect button with OAuth URL
+2. User authorises on Microsoft → Auth Gateway saves tokens with `_needs_setup=True`
+3. Panel auto-detects `_needs_setup=True` → discovers accounts → activates
+4. If 1 account → auto-activate. Multiple accounts → shows picker list.
 
 ---
 
@@ -104,66 +145,55 @@ Built on [Imperal Declarative UI](https://github.com/imperalcloud/imperal-sdk).
 
 ```
 imperal-m-ads-extension/
-├── main.py                  # Entry point — sys.modules cleanup + imports
-├── app.py                   # Extension setup, ChatExtension, helpers, health check
-├── handlers.py              # connect, status, setup_account, switch_account, disconnect
-├── handlers_campaigns.py    # list/get/create/update/pause/resume campaigns
-├── handlers_ads.py          # list/create/update ad groups + ads
-├── handlers_keywords.py     # list/add keywords, research, bid estimates
-├── handlers_reports.py      # performance, search terms, budget, AI analysis
-├── skeleton.py              # skeleton_refresh_msads + skeleton_alert_msads
-├── panels.py                # Left panel: account dashboard
-├── panels_campaigns.py      # Right panel: campaign detail + ad groups
-├── panels_reports.py        # Right panel: reports + keyword research
-├── system_prompt.txt        # LLM system prompt
-├── imperal.json             # Extension manifest
-└── msads_providers/         # Internal package (renamed from providers/ to avoid import conflict)
+├── CLAUDE.md                        # Full context for all collaborators + Claude
+├── docs/
+│   ├── extension.md                 # Full technical documentation
+│   └── frontend.md                  # Frontend status (designer maintains)
+├── main.py                          # Entry point — sys.modules isolation + imports
+├── app.py                           # Extension setup, ChatExtension, helpers
+├── handlers.py                      # connect, status, setup_account, switch_account, disconnect
+├── handlers_campaigns.py            # list/get/create/update/pause/resume/delete campaigns
+├── handlers_ads.py                  # list/create/update ad groups + RSA ads
+├── handlers_keywords.py             # list/add/pause/resume/delete keywords, research, bid estimates
+├── handlers_negative_keywords.py    # list/add/remove negative keywords
+├── handlers_reports.py              # performance, search terms, budget status, AI analysis
+├── skeleton.py                      # skeleton_refresh_msads + skeleton_alert_msads
+├── panels.py                        # Left panel: account dashboard (all states)
+├── panels_campaign.py               # Right panel: campaign detail + ad groups tabs
+├── panels_ui.py                     # Shared helpers: formatters, badges, OAuth URL builder
+├── system_prompt.txt                # LLM system prompt
+├── imperal.json                     # Extension manifest v1.1.0
+└── msads_providers/
     ├── __init__.py
-    ├── helpers.py           # OAuth constants, account helpers
-    ├── token_refresh.py     # Access token refresh logic
-    └── msads_client.py      # HTTP client → whm-microsoft-ads-control microservice
+    ├── helpers.py                   # OAuth constants, account helpers, location ID mapping
+    ├── token_refresh.py             # Access token refresh logic
+    └── msads_client.py              # HTTP client → whm-microsoft-ads-control
+                                     # All API methods + _get/_post/_patch/_delete helpers
 ```
-
----
-
-## Architecture
-
-```
-User (chat)
-    ↓ OAuth2 Authorization Code Flow
-Microsoft Azure (app dd2bfaf0) → callback → Auth Gateway /v1/oauth/microsoft-ads/callback
-    ↓ tokens stored in ctx.store["msads_accounts"]
-Extension → HTTP → whm-microsoft-ads-control (:8090 on api-server)
-    X-Ms-Access-Token + X-Ms-Customer-Id + X-Ms-Account-Id headers
-    ↓ microservice middleware → per-request BingAds SOAP client → Microsoft Ads API v13
-```
-
-**OAuth flow:**
-1. `connect()` → generates OAuth URL → user authorises on Microsoft
-2. Auth Gateway callback → tokens saved in `msads_accounts` store collection
-3. `setup_account()` → discovers available accounts → user selects one
-4. All subsequent calls go through the microservice with `X-Ms-*` headers
 
 ---
 
 ## Skeleton
 
-| Tool | TTL | Description |
-|------|-----|-------------|
-| `skeleton_refresh_msads` | 300s | Today's KPIs + campaign list + budget alerts |
-| `skeleton_alert_msads` | — | `notify()` when budget ≥ 90% spent |
+| Tool | TTL | Returns |
+|------|-----|---------|
+| `skeleton_refresh_msads` | 300s | Account info + today's account-level KPIs + campaign list (top 10) + budget alerts |
+| `skeleton_alert_msads` | — | `notify()` when any campaign budget ≥ 90% spent |
+
+**Note:** Campaign list in skeleton contains campaign metadata (name, status, budget) only.
+Per-campaign today spend/clicks are NOT included — those require a separate report call.
 
 ---
 
 ## Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MS_ADS_CLIENT_ID` | — | Azure App client ID |
-| `MS_ADS_CLIENT_SECRET` | — | Azure App client secret |
-| `MS_ADS_REDIRECT_URI` | `https://auth.imperal.io/v1/oauth/microsoft-ads/callback` | OAuth callback |
-| `MSADS_API_URL` | `https://api.webhostmost.com/microsoft-ads` | Microservice URL |
-| `MSADS_JWT` | — | Service JWT for microservice auth |
+| Variable | Description |
+|----------|-------------|
+| `MS_ADS_CLIENT_ID` | Azure App client ID (`c885090c-cd0b-4074-8a12-58d05206ca36`) |
+| `MS_ADS_CLIENT_SECRET` | Azure App client secret |
+| `MS_ADS_REDIRECT_URI` | OAuth callback (`https://auth.imperal.io/v1/oauth/microsoft-ads/callback`) |
+| `MSADS_API_URL` | Microservice URL (`https://api.webhostmost.com/microsoft-ads`) |
+| `MSADS_JWT` | Service JWT for microservice authentication |
 
 ---
 
@@ -171,4 +201,4 @@ Extension → HTTP → whm-microsoft-ads-control (:8090 on api-server)
 
 - [imperal-sdk](https://github.com/imperalcloud/imperal-sdk) 1.5.0
 - [Imperal Cloud](https://panel.imperal.io)
-- Microsoft Advertising API v13 via [BingAds SDK](https://github.com/BingAds/BingAds-Python-SDK)
+- Microsoft Advertising API v13 via [BingAds Python SDK](https://github.com/BingAds/BingAds-Python-SDK)

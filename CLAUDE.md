@@ -71,31 +71,45 @@ data["account_name"]        # str  — e.g. "Web Host Most, LLC"
 data["account_id"]          # str  — e.g. "187176890"
 data["currency"]            # str  — e.g. "USD"
 
-# Today's KPIs
-data["today"]["spend"]      # float — total spend today
-data["today"]["clicks"]     # int
+# Account-level today's KPIs (from AccountPerformanceReport)
+data["today"]["spend"]      # float — TOTAL account spend today (real, from report)
+data["today"]["clicks"]     # int   — TOTAL account clicks today
 data["today"]["impressions"]# int
-data["today"]["ctr"]        # float — e.g. 3.2 (percent)
+data["today"]["ctr"]        # float — e.g. 3.2 (shown as percent)
 data["today"]["avg_cpc"]    # float
 data["today"]["conversions"]# float
 
-# Campaigns (top 10 from skeleton)
-data["campaigns"]           # list of dicts:
-  # c["id"]                 — campaign ID
-  # c["name"]               — campaign name
-  # c["status"]             — "Active" | "Paused"
-  # c["daily_budget"]       — float
-  # c["today_spend"]        — float (may be 0 if reports unavailable)
-  # c["clicks"]             — int
+# ⚠️ IMPORTANT — these may be 0 if AccountPerformanceReport had no data yet today
+# All six fields default to 0 when skeleton first loads or report is empty.
 
-data["campaigns_active"]    # int
-data["campaigns_paused"]    # int
+# Campaigns list — top 10 (from GET /v1/campaigns — NOT a performance report)
+data["campaigns"]           # list of campaign dicts:
+  # c["id"]                 — int, campaign ID (use this for all calls)
+  # c["name"]               — str
+  # c["status"]             — "Active" | "Paused" | "Deleted" | None
+  # c["campaign_type"]      — "Search" | "Shopping" | "Audience" | "DynamicSearchAds" | "PerformanceMax" | None
+  # c["daily_budget"]       — float | None
+  # c["bidding_scheme"]     — "MaxClicks" | "MaxConversions" | "EnhancedCpc" | "ManualCpc" | None
+  # c["budget_type"]        — "DailyBudgetStandard" | "DailyBudgetAccelerated" | None
+  # c["start_date"]         — "YYYY-MM-DD" | None
+  # c["end_date"]           — "YYYY-MM-DD" | None
 
-# Budget alerts
+# ⚠️ CRITICAL — campaigns do NOT have per-campaign spend/clicks from the skeleton.
+# today_spend, clicks, ctr are NOT fields in the campaign dict.
+# They will always be 0 when read from the campaigns list.
+# The ONLY real per-day spend is data["today"]["spend"] (account total).
+# Do NOT build per-campaign spend bars in the left panel — they will always show 0.
+# If you want per-campaign spend, it requires a separate API call (get_budget_status).
+
+data["campaigns_active"]    # int — count of Active campaigns
+data["campaigns_paused"]    # int — count of Paused campaigns
+
+# Budget alerts (only present when spend ≥ 70% of daily budget)
 data["alerts"]              # list:
-  # a["type"]               — "budget_critical" | "budget_warning"
+  # a["type"]               — "budget_critical" (≥90%) | "budget_warning" (≥70%)
   # a["campaign_name"]      — str
   # a["pct_used"]           — float (e.g. 94.2)
+  # a["campaign_id"]        — str (only in "budget_critical", NOT in "budget_warning")
 ```
 
 **Panel states you must handle:**
@@ -116,26 +130,39 @@ Receives `campaign_id` param when user clicks a campaign in the left panel.
 Panel fetches data in parallel (already wired in `panels_campaign.py`):
 
 ```python
-# From api.get_campaign():
+# From api.get_campaign() → {"campaign": {...}}  (unwrapped in panel code)
+campaign["id"]               # int
 campaign["name"]             # str
-campaign["status"]           # "Active" | "Paused"
-campaign["daily_budget"]     # float
-campaign["campaign_type"]    # "Search" | "Shopping" | "Audience" | "DynamicSearchAds" | "PerformanceMax"
-campaign["bidding_scheme"]   # "MaxClicks" | "MaxConversions" | "EnhancedCpc" | "ManualCpc" | ...
+campaign["status"]           # "Active" | "Paused" | "Deleted" | None
+campaign["daily_budget"]     # float | None
+campaign["campaign_type"]    # "Search" | "Shopping" | "Audience" | "DynamicSearchAds" | "PerformanceMax" | None
+campaign["bidding_scheme"]   # "MaxClicks" | "MaxConversions" | "MaxConversionValue" | "EnhancedCpc" | "ManualCpc" | None
+campaign["budget_type"]      # "DailyBudgetStandard" | "DailyBudgetAccelerated" | None
+campaign["start_date"]       # "YYYY-MM-DD" | None
+campaign["end_date"]         # "YYYY-MM-DD" | None
+campaign["languages"]        # list[str] | None — e.g. ["English", "French"] or ["All"]
+campaign["tracking_url_template"]  # str | None
+campaign["final_url_suffix"] # str | None
 
-# From api.get_ad_groups():
+# From api.get_ad_groups() → {"ad_groups": [...]}
 ad_groups                    # list:
-  # ag["id"] / ag["ad_group_id"]
-  # ag["name"]
-  # ag["cpc_bid"]            — float
-  # ag["status"]             — "Active" | "Paused"
-  # ag["language"]           — "English" | ...
+  # ag["id"]                 — int, ad group ID
+  # ag["campaign_id"]        — int | None
+  # ag["name"]               — str
+  # ag["status"]             — "Active" | "Paused" | None
+  # ag["ad_group_type"]      — "SearchStandard" | "SearchDynamic" | None
+  # ag["cpc_bid"]            — float | None (default CPC bid)
+  # ag["cpm_bid"]            — float | None (for Audience campaigns)
+  # ag["language"]           — "English" | "Spanish" | ... | None
+  # ag["network"]            — str | None
+  # ag["inherited_bidding_scheme"] — str | None (read-only, from campaign)
 
-# From skeleton (this campaign's today data):
-today_spend                  # float — spend today for THIS campaign
-today_clicks                 # int
-today_ctr                    # float
-today_cpc                    # float
+# From skeleton (matched by campaign_id to campaigns list)
+# ⚠️ SAME WARNING as left panel: today_spend/clicks/ctr/avg_cpc from
+# the skeleton campaigns list are always 0 — campaigns list has no performance data.
+# These values will show as 0 in the right panel Today tab.
+# This is expected behaviour — acceptable until a dedicated per-campaign
+# report call is added to panels_campaign.py.
 ```
 
 **Panel states:**
