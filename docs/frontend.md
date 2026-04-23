@@ -12,13 +12,15 @@ The backend is **100% complete** — 30 functions, all tested and working.
 The panels exist but were written by a developer, not a designer.
 They are **functional** (all states wired, data connected) but need proper design.
 
-### Files to redesign
+### Current file structure (designer updated)
 
 | File | What it contains | Status |
 |------|-----------------|--------|
-| `panels.py` | Left panel: account dashboard | Functional draft — needs design |
-| `panels_campaign.py` | Right panel: campaign detail | Functional draft — needs design |
-| `panels_ui.py` | Shared helpers: formatters, badges, OAuth view | Reusable, extend as needed |
+| `panels.py` | Left panel: account dashboard (all states) | Functional draft — needs design |
+| `panels_campaign.py` | Right panel router (mode/campaign_id dispatch) | Refactored by designer |
+| `panels_campaign_create.py` | Create campaign form (ui.Form) | ✅ Built by designer (PR #1, #2) |
+| `panels_campaign_detail.py` | Campaign detail: Overview + Ad Groups tabs | ✅ Built by designer (PR #1, #2) |
+| `panels_ui.py` | Shared helpers: formatters, badges, OAuth view, date helpers | Reusable, extend as needed |
 
 ---
 
@@ -34,28 +36,39 @@ They are **functional** (all states wired, data connected) but need proper desig
 6. **dashboard** — Full view: Header, budget progress bar, KPI stats (2 columns),
    campaign divider, campaigns list with pause/resume actions, footer with "+ Campaign"
 
-### Right panel (`panels_campaign.py`) — 3 states
+### Right panel router (`panels_campaign.py`) — dispatches to:
 
-1. **empty** — "Select a campaign from the left panel"
-2. **error** — API failure with retry button
-3. **loaded** — Header (name + badge) + Settings stats (3 columns: budget/bidding/status)
-   + Tabs: "Today" (spend chart + KPI stats) · "Ad Groups (N)" (list with Keywords/Ads actions)
-   + Footer: Pause/Resume · 7-day report · AI Analyse
+**`panels_campaign_create.py`** (mode="create"):
+- ui.Form: Name, Type (Select), Daily Budget, Bid Strategy (Select)
+- Submit → create_campaign | Cancel → back to empty state
+
+**`panels_campaign_detail.py`** (campaign_id present):
+- Header: campaign name + status badge + ID + type
+- Settings stats: budget / bidding strategy / status (3 columns)
+- Tab selector: Overview button | Ad Groups (N) button (manual, not ui.Tabs)
+- **Overview tab** (active_tab=0):
+  - Period filter: 7D / 30D / This month
+  - Spend vs Daily Budget bar chart (today_spend from skeleton — may be 0)
+  - Period KPIs: Spend / Clicks / CTR / Avg CPC (from real report data, hidden if report fails)
+  - Daily spend trend chart (from real report data, hidden if report fails)
+- **Ad Groups tab** (active_tab=1):
+  - List of ad groups with Keywords / Ads quick-action buttons
+  - "+ Ad Group" button
+- Footer: Pause/Resume · AI Analyse
 
 ---
 
 ## Design TODO
 
-> Fill this in as you plan and execute the redesign.
-
-- [ ] Left panel: account dashboard
+- [x] Right panel: Create campaign form (PR #1)
+- [x] Right panel: Campaign detail — Overview tab with period filter + charts (PR #2)
+- [x] Right panel: Ad Groups tab with list (PR #2)
+- [ ] Left panel: account dashboard — full redesign
 - [ ] Left panel: not_connected view
 - [ ] Left panel: account picker (multi-account)
-- [ ] Right panel: campaign detail header
-- [ ] Right panel: Today tab (chart + KPIs)
-- [ ] Right panel: Ad Groups tab
-- [ ] Shared: badge styles (Active/Paused/Deleted)
-- [ ] Shared: formatters review (currency, percentage, number)
+- [ ] Left panel: needs_setup states
+- [ ] Shared: review badge styles (Active/Paused/Deleted/Draft)
+- [ ] Shared: review formatters (currency, percentage, number)
 
 ---
 
