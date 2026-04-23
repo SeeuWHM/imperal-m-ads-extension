@@ -254,12 +254,12 @@ async def panel_account_dashboard(
         ui.List(items=camp_items, searchable=True, page_size=10)
         if camp_items else
         ui.Empty(message="No campaigns yet.", icon="BarChart2",
-                 action=ui.Send("Create a new Microsoft Ads campaign"))
+                 action=ui.Call("__panel__campaign_detail", mode="create"))
     )
 
     footer = ui.Stack([
         ui.Button("+ Campaign", variant="primary", icon="Plus",
-                  on_click=ui.Send("Create a new Microsoft Ads campaign")),
+                  on_click=ui.Call("__panel__campaign_detail", mode="create")),
         ui.Button("", icon="RefreshCw", variant="ghost", size="sm",
                   on_click=ui.Call("__panel__account_dashboard")),
     ], direction="h", gap=2, sticky=True)
