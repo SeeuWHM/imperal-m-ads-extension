@@ -109,29 +109,6 @@ def not_connected_view(ctx) -> ui.UINode:
     ])
 
 
-def needs_setup_view(display_name: str = "") -> ui.UINode:
-    who = f" as {display_name}" if display_name else ""
-    return ui.Stack([
-        ui.Alert(
-            type="info",
-            message=f"Signed in{who} with Microsoft. Select your ad account to continue.",
-        ),
-        ui.Button(
-            "Setup account",
-            variant="primary",
-            full_width=True,
-            on_click=ui.Send("Setup my Microsoft Ads account"),
-        ),
-        ui.Divider(),
-        ui.Button(
-            "Wrong account? Disconnect",
-            variant="ghost",
-            full_width=True,
-            on_click=ui.Call("__panel__force_disconnect"),
-        ),
-    ])
-
-
 def error_view(msg: str, ctx=None) -> ui.UINode:
     url = _build_oauth_url(ctx) if ctx else ""
     return ui.Stack([

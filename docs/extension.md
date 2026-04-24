@@ -4,7 +4,7 @@
 **Extension ID:** `microsoft-ads` | **Tool:** `tool_msads_chat`
 **Production:** `/opt/extensions/microsoft-ads/` on `whm-ai-worker`
 **Git:** `github.com/SeeuWHM/imperal-m-ads-extension` | **SSH alias:** `github-m-ads`
-**Latest commit:** `e2f18f1`
+**Latest commit:** `611052b`
 
 ---
 
@@ -39,18 +39,20 @@ microsoft-ads/
 ├── docs/
 │   ├── extension.md                 # This file — full technical docs
 │   └── frontend.md                  # Frontend status (designer maintains)
-├── main.py                          # Entry point + sys.modules isolation
-├── app.py                           # Extension + ChatExtension(haiku) + error helpers
+├── main.py                          # Entry point + sys.modules isolation (all modules listed)
+├── app.py                           # Extension v1.1.0 + ChatExtension(haiku) + error helpers
 ├── handlers.py                      # connect, status, setup_account, switch_account, disconnect
 ├── handlers_campaigns.py            # list/get/create/update/pause/resume/delete campaign
-├── handlers_ads.py                  # list/create ad_group, list/create/update ad
+├── handlers_ads.py                  # list/create/update ad_group, list/create/update ad
 ├── handlers_keywords.py             # list/add/pause/resume/delete keywords, research, bid_estimates
 ├── handlers_negative_keywords.py    # list/add/remove negative keywords
 ├── handlers_reports.py              # get_performance, get_search_terms, get_budget_status, analyze_performance
 ├── skeleton.py                      # skeleton_refresh_msads + skeleton_alert_msads
 ├── panels.py                        # @ext.panel left: account dashboard (all states)
-├── panels_campaign.py               # @ext.panel right: campaign detail + ad groups
-├── panels_ui.py                     # shared helpers: formatters, OAuth URL, badges
+├── panels_campaign.py               # @ext.panel right: router — mode=create|detail, params routing
+├── panels_campaign_create.py        # Create Campaign form (ui.Form with all campaign fields)
+├── panels_campaign_detail.py        # Campaign detail: overview tab + ad groups tab
+├── panels_ui.py                     # Shared helpers: formatters, OAuth URL, badges, date helpers
 ├── system_prompt.txt                # LLM system prompt
 ├── imperal.json                     # Manifest v1.1.0
 └── msads_providers/
@@ -59,8 +61,7 @@ microsoft-ads/
     │                                # _active_account, _MS_LOCATION_IDS, _to_location_ids()
     ├── token_refresh.py             # _refresh_msads_token, _refresh_token_if_needed
     └── msads_client.py              # HTTP client → whm-microsoft-ads-control
-                                     # _get/_post/_patch/_delete helpers
-                                     # All API methods
+                                     # _get/_post/_patch/_delete helpers + all API methods
 ```
 
 ---
@@ -124,12 +125,89 @@ microsoft-ads/
 
 ---
 
+## Store Structure
+
+**Collection:** `msads_accounts` (one document per connected Microsoft Ads account per user)
+
+```python
+# Document fields stored in ext_store:
+{
+    "display_name":  str,   # "Web Host Most, LLC" or "Microsoft Ads User" (fallback)
+    "provider":      str,   # always "microsoft-ads"
+    "access_token":  str,   # OAuth access token (expires in ~1 hour)
+    "refresh_token": str,   # OAuth refresh token (used to get new access_token)
+    "expires_at":    int,   # Unix timestamp when access_token expires
+    "customer_id":   str,   # Microsoft Ads customer ID (set by setup_account)
+    "account_id":    str,   # Microsoft Ads account ID (set by setup_account)
+    "account_name":  str,   # Account display name (set by setup_account)
+    "currency":      str,   # e.g. "USD" (set by setup_account)
+    "is_active":     bool,  # True = this is the active account for API calls
+    "_needs_setup":  bool,  # True = OAuth done, account not selected yet
+    "_needs_reauth": bool,  # True = refresh_token expired, user must re-auth
+}
+```
+
+**Account states:**
+- `_needs_setup=True`: OAuth completed, `customer_id`/`account_id` empty → panel shows account picker
+- `_needs_setup=False, _needs_reauth=False`: fully active → API calls work
+- `_needs_reauth=True`: refresh_token returned 400 → set by `token_refresh.py` → user must reconnect
+
+**Token refresh logic (`msads_providers/token_refresh.py`):**
+- `_refresh_token_if_needed(ctx, acc)`: refreshes if `expires_at < now + 120s` (2-minute buffer)
+- Called automatically before every API call in `_get()/_post()/_patch()/_delete()`
+- On 400 from Microsoft: sets `_needs_reauth=True` in store, returns acc unchanged
+- On transient errors: logs warning, returns acc unchanged (does not fail the request)
+
+---
+
 ## Skeleton
 
 | Tool | Section | TTL | Returns |
 |------|---------|-----|---------|
 | `skeleton_refresh_msads` | `msads_account` | 300s | account info + today KPIs + campaigns + alerts |
 | `skeleton_alert_msads` | — | — | push notify if budget_critical (≥90%) |
+
+---
+
+## Panels
+
+### Left — `account_dashboard` (slot: left, file: `panels.py`)
+
+Params: `disconnect`, `activate_id`, `doc_id`
+
+| State | Condition |
+|-------|-----------|
+| `not_connected` | No accounts in store |
+| `no_customers` | `_needs_setup=True`, 0 accounts found via API |
+| `auto_setup` | `_needs_setup=True`, 1 account → auto-activate + refresh button |
+| `picker` | `_needs_setup=True`, >1 accounts → `ui.List` account picker |
+| `loading_error` | Account set up, skeleton missing or fetch failed |
+| `dashboard` | Skeleton OK — Header + budget bar + KPI Stats(2col) + campaigns list |
+| `disconnect="1"` | Wipes all store accounts → shows `not_connected` |
+
+### Right — `campaign_detail` (slot: right, router: `panels_campaign.py`)
+
+Params: `campaign_id`, `mode`, `report_range` (default `LAST_7_DAYS`), `active_tab` (default 0)
+
+| State | Condition | File |
+|-------|-----------|------|
+| Empty | No `campaign_id` | `panels_campaign.py` inline |
+| Create form | `mode="create"` | `panels_campaign_create.py` |
+| Campaign detail | `campaign_id` present | `panels_campaign_detail.py` |
+
+**Create form** (`panels_campaign_create.py`):
+- `ui.Form` with: Name (Input), Type (Select), Daily Budget (Input), Bid Strategy (Select)
+- Submit → calls `create_campaign` handler
+- Cancel → `ui.Call("__panel__campaign_detail")` (no params = empty state)
+
+**Campaign detail tabs** (`panels_campaign_detail.py`):
+- Tab 0 **Overview**: period selector (7D/30D/This month) + spend vs budget bar chart + period KPIs + daily spend trend chart
+- Tab 1 **Ad Groups (N)**: list with Keywords/Ads quick actions per group + "+ Ad Group" button
+
+**Period report data:**
+- Fetches `CampaignPerformanceReport` (Daily aggregation) for selected period via `api.get_report`
+- If report fails (e.g. Basic Developer Token limitation) → degrades gracefully: shows budget chart only, period KPIs hidden
+- `report_range` presets: `LAST_7_DAYS`, `LAST_30_DAYS`, `THIS_MONTH` (via `panels_ui.date_range()`)
 
 ---
 
@@ -179,6 +257,45 @@ git push origin main
 # Developer Portal: Deploy tab → select latest commit
 # Then: imperal-platform-worker@{1..3} restart needed for new code
 ```
+
+---
+
+## panels_ui.py — Shared Helpers Reference
+
+| Function/Constant | Description |
+|------------------|-------------|
+| `fmt_currency(amount, currency)` | `"$1.23"` — currency symbol + 2 decimal places |
+| `fmt_pct(value, decimals=1)` | `"3.2%"` — percentage with configurable decimals |
+| `fmt_number(value)` | `"1,204"` — integer with thousands separator |
+| `campaign_badge(status)` | Returns `ui.Badge` with color: Active=green, Paused=gray, Deleted=red, Draft=yellow |
+| `not_connected_view(ctx)` | Full not-connected state UI with OAuth Connect button |
+| `error_view(msg, ctx)` | Error state UI with Reconnect button |
+| `_build_oauth_url(ctx)` | Builds the full OAuth URL with state, prompt=select_account |
+| `DATE_OPTS` | List of date range preset dicts for use in `ui.Select` |
+| `date_range(preset)` | Converts preset string → `(start_date, end_date)` ISO tuple |
+
+**Date presets in `DATE_OPTS`:**
+- `"TODAY"` → today / today
+- `"LAST_7_DAYS"` → 6 days ago / today
+- `"LAST_30_DAYS"` → 29 days ago / today
+- `"THIS_MONTH"` → 1st of month / today
+- `"LAST_MONTH"` → 1st of prev month / last day of prev month
+
+---
+
+## Health Check
+
+`app.py` registers `@ext.health_check` that returns:
+```python
+{
+    "status":             "ok" | "degraded",
+    "version":            "1.1.0",
+    "accounts_connected": int,
+    "oauth_configured":   bool,
+    "microservice":       "ok" | "degraded" | "unreachable",
+}
+```
+**Known warning:** `'list' object has no attribute 'data'` in skeleton_store health check — kernel-level bug, not extension code. Does not affect functionality.
 
 ---
 

@@ -42,14 +42,13 @@ async def panel_campaign_detail(
         return ui.Stack([ui.Alert(type="error", message=err.error or err.summary)])
 
     start, end = date_range(report_range)
+
+    # Required calls — panel can't render without these
     try:
-        camp_data, ag_data, report_data = await asyncio.gather(
+        camp_data, ag_data, skel = await asyncio.gather(
             api.get_campaign(ctx, acc, int(campaign_id)),
             api.get_ad_groups(ctx, acc, int(campaign_id)),
-            api.get_report(ctx, acc, "campaign",
-                           start_date=start, end_date=end,
-                           aggregation="Daily",
-                           campaign_id=int(campaign_id)),
+            ctx.skeleton.get(SECTION),
         )
     except Exception as exc:
         return ui.Stack([
@@ -58,9 +57,21 @@ async def panel_campaign_detail(
                       on_click=ui.Call("__panel__campaign_detail", campaign_id=campaign_id)),
         ])
 
+    # Optional: period performance report — may fail on Basic Developer Token (graceful degradation)
+    report_data: dict = {}
+    try:
+        report_data = await api.get_report(
+            ctx, acc, "campaign",
+            start_date=start, end_date=end,
+            aggregation="Daily",
+            campaign_id=int(campaign_id),
+        )
+    except Exception:
+        pass  # report_data stays {}; _build_overview_tab renders without period chart
+
     ad_groups = ag_data.get("ad_groups", [])
 
     return _build_detail_view(
-        camp_data, ad_groups, {}, acc, campaign_id,
+        camp_data, ad_groups, skel or {}, acc, campaign_id,
         report_data or {}, report_range, active_tab,
     )

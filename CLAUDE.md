@@ -22,10 +22,12 @@ in the panel and manage campaigns, keywords, budgets, and ads through natural la
 ## Your files (frontend only)
 
 ```
-panels.py           — LEFT panel: account dashboard (all states)
-panels_campaign.py  — RIGHT panel: campaign detail + ad groups
-panels_ui.py        — shared helpers: formatters, OAuth URL, badges
-docs/frontend.md    — your working notes, status, decisions (you maintain this)
+panels.py                — LEFT panel: account dashboard (all states)
+panels_campaign.py       — RIGHT panel: router (dispatches by mode param)
+panels_campaign_create.py — Create campaign form (ui.Form)
+panels_campaign_detail.py — Campaign detail: Overview + Ad Groups tabs
+panels_ui.py             — shared helpers: formatters, OAuth URL, badges, date helpers
+docs/frontend.md         — your working notes, status, decisions (you maintain this)
 ```
 
 **Do NOT touch** — backend is complete and working:
@@ -33,7 +35,7 @@ docs/frontend.md    — your working notes, status, decisions (you maintain this
 handlers*.py        — 30 chat functions
 msads_providers/    — API client, token refresh, helpers
 skeleton.py         — background data refresh
-main.py             — entry point
+main.py             — entry point (add new panel files here if you split further)
 app.py              — extension setup
 imperal.json        — manifest
 system_prompt.txt   — LLM instructions
@@ -55,6 +57,38 @@ Read these directly when you need them — always up-to-date:
 `ui.Stack`, `ui.Header`, `ui.Stats` + `ui.Stat`, `ui.List` + `ui.ListItem`,
 `ui.Button`, `ui.Badge`, `ui.Alert`, `ui.Progress`, `ui.Chart`, `ui.Tabs`,
 `ui.Text`, `ui.Divider`, `ui.Empty`
+
+---
+
+## Helpers available in `panels_ui.py`
+
+These are already implemented — import and use them, don't re-implement:
+
+```python
+from panels_ui import (
+    fmt_currency,    # fmt_currency(1234.5, "USD") → "$1234.50"
+    fmt_pct,         # fmt_pct(3.256) → "3.3%"  (1 decimal default)
+    fmt_number,      # fmt_number(1204) → "1,204"
+    campaign_badge,  # campaign_badge("Active") → ui.Badge(green)
+                     # campaign_badge("Paused") → ui.Badge(gray)
+                     # campaign_badge("Deleted") → ui.Badge(red)
+    not_connected_view,  # full not-connected UI state
+    error_view,          # error UI with reconnect button
+    DATE_OPTS,       # list of date range presets for ui.Select
+    date_range,      # date_range("LAST_7_DAYS") → ("2026-04-17", "2026-04-24")
+)
+```
+
+**`DATE_OPTS`** — use in a date range picker:
+```python
+DATE_OPTS = [
+    {"value": "TODAY",        "label": "Today"},
+    {"value": "LAST_7_DAYS",  "label": "Last 7 days"},
+    {"value": "LAST_30_DAYS", "label": "Last 30 days"},
+    {"value": "THIS_MONTH",   "label": "This month"},
+    {"value": "LAST_MONTH",   "label": "Last month"},
+]
+```
 
 ---
 
@@ -124,10 +158,14 @@ data["alerts"]              # list:
 | `dashboard` | Skeleton loaded | Full dashboard |
 | `disconnect="1"` param | User clicked disconnect | Delete all accounts → show not_connected |
 
-### Right panel — `panels_campaign.py`
+### Right panel — `panels_campaign.py` (router) + `panels_campaign_detail.py` (detail)
 
-Receives `campaign_id` param when user clicks a campaign in the left panel.
-Panel fetches data in parallel (already wired in `panels_campaign.py`):
+The right panel is a router. Params: `campaign_id`, `mode`, `report_range`, `active_tab`.
+- `mode="create"` → shows `panels_campaign_create.py` (Create Campaign form)
+- `campaign_id` present → shows `panels_campaign_detail.py` (campaign detail)
+- No params → empty state
+
+**`panels_campaign_detail.py`** fetches data in parallel:
 
 ```python
 # From api.get_campaign() → {"campaign": {...}}  (unwrapped in panel code)
@@ -157,12 +195,23 @@ ad_groups                    # list:
   # ag["network"]            — str | None
   # ag["inherited_bidding_scheme"] — str | None (read-only, from campaign)
 
+# From api.get_report() → period CampaignPerformanceReport (Daily aggregation)
+# report_data["rows"] — list of daily rows for the selected period:
+#   r["TimePeriod"]  — "YYYY-MM-DD"
+#   r["Spend"]       — float (spend for that day)
+#   r["Clicks"]      — int
+#   r["Impressions"] — int
+#   r["Ctr"]         — float (percent)
+#   r["AverageCpc"]  — float
+#
+# ⚠️ report_data may be {} if CampaignPerformanceReport fails (Basic token limitation)
+# In that case panels_campaign_detail.py shows budget chart only — period KPIs hidden.
+# The code handles this gracefully — do NOT add error states for empty report_data.
+
 # From skeleton (matched by campaign_id to campaigns list)
-# ⚠️ SAME WARNING as left panel: today_spend/clicks/ctr/avg_cpc from
-# the skeleton campaigns list are always 0 — campaigns list has no performance data.
-# These values will show as 0 in the right panel Today tab.
-# This is expected behaviour — acceptable until a dedicated per-campaign
-# report call is added to panels_campaign.py.
+# ⚠️ today_spend from skeleton campaigns is still always 0 (campaigns list has no
+# per-campaign spend data). today_spend in panels_campaign_detail.py comes from skeleton
+# and will show 0. The period spend in Overview tab comes from report_data (real data).
 ```
 
 **Panel states:**

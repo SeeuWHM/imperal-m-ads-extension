@@ -1,7 +1,7 @@
 """Microsoft Ads · Campaign management handlers.
 
 Functions: list_campaigns, get_campaign, create_campaign,
-           update_campaign, pause_campaign, resume_campaign.
+           update_campaign, pause_campaign, resume_campaign, delete_campaign.
 """
 from __future__ import annotations
 
