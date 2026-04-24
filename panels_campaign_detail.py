@@ -94,7 +94,7 @@ def _build_detail_view(
             ),
         ),
         ui.Button("AI Analyse", icon="Sparkles", variant="ghost",
-                  on_click=ui.Call("analyze_performance", focus="general")),
+                  on_click=ui.Send("Analyse the performance of this campaign")),
     ], direction="h", gap=2, sticky=True)
 
     return ui.Stack([header, ui.Divider(), settings_stats, ui.Divider(),

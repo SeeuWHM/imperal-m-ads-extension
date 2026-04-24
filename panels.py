@@ -67,7 +67,7 @@ async def panel_account_dashboard(
                 ])
 
     # ── Connection state check ────────────────────────────────────────── #
-    data = await ctx.skeleton.get(SECTION) or {}
+    data = {}
 
     if not data.get("connected"):
         accounts = await _all_accounts(ctx)
