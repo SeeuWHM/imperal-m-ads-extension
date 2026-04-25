@@ -94,7 +94,7 @@ def _build_detail_view(
             ),
         ),
         ui.Button("AI Analyse", icon="Sparkles", variant="ghost",
-                  on_click=ui.Send("Analyse the performance of this campaign")),
+                  on_click=ui.Call("analyze_performance", focus="general")),
     ], direction="h", gap=2, sticky=True)
 
     return ui.Stack([header, ui.Divider(), settings_stats, ui.Divider(),
@@ -197,7 +197,8 @@ def _build_ag_tab(
             ui.Empty(
                 message="No ad groups yet.",
                 icon="Layers",
-                action=ui.Send(f"Create an ad group in campaign '{camp_name}'"),
+                action=ui.Call("__panel__campaign_detail",
+                               campaign_id=campaign_id, mode="create_ag", active_tab=1),
             ),
         ])
 
@@ -218,12 +219,12 @@ def _build_ag_tab(
                 {
                     "icon":     "List",
                     "label":    "Keywords",
-                    "on_click": ui.Send(f"Show keywords in ad group '{ag_name}'"),
+                    "on_click": ui.Call("list_keywords", ad_group_id=agid),
                 },
                 {
                     "icon":     "FileText",
                     "label":    "Ads",
-                    "on_click": ui.Send(f"Show ads in ad group '{ag_name}'"),
+                    "on_click": ui.Call("list_ads", ad_group_id=agid),
                 },
             ],
         ))
@@ -231,7 +232,47 @@ def _build_ag_tab(
     return ui.Stack([
         ui.List(items=items),
         ui.Button("+ Ad Group", icon="Plus", variant="ghost",
-                  on_click=ui.Send(f"Create an ad group in campaign '{camp_name}'")),
+                  on_click=ui.Call("__panel__campaign_detail",
+                                   campaign_id=campaign_id, mode="create_ag", active_tab=1)),
+    ])
+
+
+# ─── Create ad group form ─────────────────────────────────────────────── #
+
+def _build_create_ag_view(campaign_id: str) -> ui.UINode:
+    form = ui.Form(
+        children=[
+            ui.Text(content="Ad Group Name", variant="label"),
+            ui.Input(placeholder="e.g. Brand Keywords", param_name="name"),
+            ui.Text(content="Default CPC Bid", variant="label"),
+            ui.Input(placeholder="1.00", param_name="cpc_bid"),
+            ui.Text(content="Language", variant="label"),
+            ui.Select(
+                options=[
+                    {"value": "English", "label": "English"},
+                    {"value": "Spanish", "label": "Spanish"},
+                    {"value": "French",  "label": "French"},
+                    {"value": "German",  "label": "German"},
+                    {"value": "Russian", "label": "Russian"},
+                ],
+                param_name="language",
+            ),
+            ui.Input(value=campaign_id, param_name="campaign_id"),
+        ],
+        action="create_ad_group",
+        submit_label="Create Ad Group",
+        defaults={"cpc_bid": "1.00", "language": "English", "campaign_id": campaign_id},
+    )
+    footer = ui.Stack([
+        ui.Button("Cancel", variant="ghost",
+                  on_click=ui.Call("__panel__campaign_detail",
+                                   campaign_id=campaign_id, active_tab=1, mode="view")),
+    ], direction="h", sticky=True)
+    return ui.Stack([
+        ui.Header(text="New Ad Group", level=3),
+        ui.Divider(),
+        form,
+        footer,
     ])
 
 
