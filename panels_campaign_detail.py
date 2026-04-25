@@ -94,7 +94,7 @@ def _build_detail_view(
             ),
         ),
         ui.Button("AI Analyse", icon="Sparkles", variant="ghost",
-                  on_click=ui.Send(f"Analyse the performance of campaign '{camp_name}' (id: {campaign_id})")),
+                  on_click=ui.Call("analyze_performance")),
     ], direction="h", gap=2, sticky=True)
 
     return ui.Stack([header, ui.Divider(), settings_stats, ui.Divider(),
@@ -219,12 +219,12 @@ def _build_ag_tab(
                 {
                     "icon":     "List",
                     "label":    "Keywords",
-                    "on_click": ui.Send(f"Show keywords in ad group '{ag_name}' (id: {agid})"),
+                    "on_click": ui.Call("list_keywords", ad_group_id=agid),
                 },
                 {
                     "icon":     "FileText",
                     "label":    "Ads",
-                    "on_click": ui.Send(f"Show ads in ad group '{ag_name}' (id: {agid})"),
+                    "on_click": ui.Call("list_ads", ad_group_id=agid),
                 },
             ],
         ))
