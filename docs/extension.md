@@ -181,9 +181,11 @@ Params: `disconnect`, `activate_id`, `doc_id`
 | `no_customers` | `_needs_setup=True`, 0 accounts found via API |
 | `auto_setup` | `_needs_setup=True`, 1 account → auto-activate + refresh button |
 | `picker` | `_needs_setup=True`, >1 accounts → `ui.List` account picker |
-| `loading_error` | Account set up, skeleton missing or fetch failed |
-| `dashboard` | Skeleton OK — Header + budget bar + KPI Stats(2col) + campaigns list |
+| `loading_error` | Account set up, `skeleton_refresh()` returned no data |
+| `dashboard` | Account active — `skeleton_refresh()` called directly, data loaded |
 | `disconnect="1"` | Wipes all store accounts → shows `not_connected` |
+
+> **Note (v1.1.1):** Panel no longer reads `ctx.skeleton.get()` (forbidden in SDK v1.6.0 for `@ext.panel`). On each render it calls `skeleton_refresh(ctx)` directly when the account is set up but data is missing.
 
 ### Right — `campaign_detail` (slot: right, router: `panels_campaign.py`)
 
@@ -191,18 +193,32 @@ Params: `campaign_id`, `mode`, `report_range` (default `LAST_7_DAYS`), `active_t
 
 | State | Condition | File |
 |-------|-----------|------|
-| Empty | No `campaign_id` | `panels_campaign.py` inline |
-| Create form | `mode="create"` | `panels_campaign_create.py` |
-| Campaign detail | `campaign_id` present | `panels_campaign_detail.py` |
+| Empty | No `campaign_id`, no `mode` | `panels_campaign.py` inline |
+| Create campaign | `mode="create"` | `panels_campaign_create.py` |
+| Create ad group | `mode="create_ag"` + `campaign_id` present | `panels_campaign_detail.py` → `_build_create_ag_view` |
+| Campaign detail | `campaign_id` present, no special `mode` | `panels_campaign_detail.py` → `_build_detail_view` |
 
-**Create form** (`panels_campaign_create.py`):
+**Create campaign form** (`panels_campaign_create.py`):
 - `ui.Form` with: Name (Input), Type (Select), Daily Budget (Input), Bid Strategy (Select)
 - Submit → calls `create_campaign` handler
-- Cancel → `ui.Call("__panel__campaign_detail")` (no params = empty state)
+- Cancel → `ui.Call("__panel__campaign_detail", mode="", campaign_id="")` (clears state)
 
-**Campaign detail tabs** (`panels_campaign_detail.py`):
+**Create ad group form** (`panels_campaign_detail.py` → `_build_create_ag_view`):
+- `ui.Form` with: Name (Input), Default CPC Bid (Input), Language (Select), campaign_id (hidden)
+- Submit → calls `create_ad_group` handler
+- Cancel → `ui.Call("__panel__campaign_detail", campaign_id=..., active_tab=1, mode="view")`
+
+**Campaign detail tabs** (`panels_campaign_detail.py` → `_build_detail_view`):
 - Tab 0 **Overview**: period selector (7D/30D/This month) + spend vs budget bar chart + period KPIs + daily spend trend chart
-- Tab 1 **Ad Groups (N)**: list with Keywords/Ads quick actions per group + "+ Ad Group" button
+- Tab 1 **Ad Groups (N)**: list with Keywords/Ads quick-action buttons + "+ Ad Group" button → `mode="create_ag"`
+
+**Campaign detail footer actions:**
+- Pause/Resume → `ui.Call("pause_campaign"/"resume_campaign", campaign_id=...)`
+- AI Analyse → `ui.Call("analyze_performance")` — account-level AI analysis via `ctx.ai.complete`
+- Keywords (per ad group) → `ui.Call("list_keywords", ad_group_id=...)`
+- Ads (per ad group) → `ui.Call("list_ads", ad_group_id=...)`
+
+> **Note (v1.1.1):** All panel buttons use `ui.Call` — `ui.Send` was replaced as it is a no-op in the current platform (GAP-B: `sendRef` not wired in `ExtensionPage.tsx`).
 
 **Period report data:**
 - Fetches `CampaignPerformanceReport` (Daily aggregation) for selected period via `api.get_report`
