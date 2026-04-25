@@ -67,7 +67,7 @@ async def panel_account_dashboard(
                 ])
 
     # ── Connection state check ────────────────────────────────────────── #
-    data = {}  # ctx.skeleton not accessible from @ext.panel (SDK v1.6.0)
+    data = {}
 
     if not data.get("connected"):
         accounts = await _all_accounts(ctx)

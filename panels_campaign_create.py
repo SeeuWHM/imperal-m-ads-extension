@@ -43,7 +43,7 @@ def _build_create_view() -> ui.UINode:
 
     footer = ui.Stack([
         ui.Button("Cancel", variant="ghost",
-                  on_click=ui.Call("__panel__campaign_detail")),
+                  on_click=ui.Call("__panel__campaign_detail", mode="view", campaign_id="")),
     ], direction="h", sticky=True)
 
     return ui.Stack([

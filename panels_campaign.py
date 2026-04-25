@@ -8,7 +8,7 @@ from imperal_sdk import ui
 from app import ext, _get_ready_account
 import msads_providers.msads_client as api
 from panels_campaign_create import _build_create_view
-from panels_campaign_detail import _build_detail_view
+from panels_campaign_detail import _build_detail_view, _build_create_ag_view
 from panels_ui import date_range
 
 SECTION = "msads_account"
@@ -28,6 +28,14 @@ async def panel_campaign_detail(
         if err:
             return ui.Stack([ui.Alert(type="error", message=err.error or err.summary)])
         return _build_create_view()
+
+    if mode == "create_ag":
+        if not campaign_id:
+            return ui.Stack([ui.Empty(message="Select a campaign first.", icon="MousePointer")])
+        acc, err = await _get_ready_account(ctx)
+        if err:
+            return ui.Stack([ui.Alert(type="error", message=err.error or err.summary)])
+        return _build_create_ag_view(campaign_id)
 
     if not campaign_id:
         return ui.Stack([
