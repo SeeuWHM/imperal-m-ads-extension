@@ -124,8 +124,7 @@ async def fn_status(ctx) -> ActionResult:
             summary="No Microsoft Ads account connected.",
         )
 
-    skeleton_data = await ctx.skeleton.get("msads_account") or {}
-    today = skeleton_data.get("today", {})
+    today = {}  # ctx.skeleton not accessible from @chat.function (SDK v1.6.0)
 
     result = [
         {

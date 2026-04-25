@@ -304,10 +304,17 @@ git push origin main
 - [ ] **Universal Developer Token** — multi-user blocked until Microsoft approves application
 - [ ] **display_name = "Microsoft Ads User"** — MS Ads token doesn't have Graph `User.Read` scope
 - [ ] **CampaignPerformanceReport → 502** — Basic token limitation on reporting API; `get_budget_status` gracefully falls back to campaign list without live spend
+- [x] ~~**`fn_status` today metrics**~~ — `ctx.skeleton` forbidden in `@chat.function` (SDK v1.6.0); `today` now returns `{}` (status still shows accounts list correctly)
+- [x] ~~**`skeleton_alert_msads` + panels skeleton reads**~~ — `ctx.skeleton.get()` replaced with live API call in `skeleton_alert`; panels use `data = {}` with existing fallback path (SDK v1.6.0 compliance)
 
 ---
 
 ## Changelog
+
+### v1.1.1 (2026-04-25)
+- Fix: `fn_status` — removed `ctx.skeleton.get()` call (`SkeletonAccessForbidden` in SDK v1.6.0); `today` stats return empty dict, accounts list unaffected
+- Fix: `skeleton_alert_msads` — replaced `ctx.skeleton.get()` with live `api.get_campaigns()` call (SDK v1.6.0 compliance)
+- Fix: `panels.py`, `panels_campaign.py` — removed `ctx.skeleton.get()` from `@ext.panel` context; fallback path via `skeleton_refresh()` already handles missing skeleton data
 
 ### v1.1.0 (2026-04-23)
 - Fixed: `fn_get_budget_status` — replaced non-existent `/v1/reports/budget` with parallel campaign fetch

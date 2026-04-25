@@ -45,10 +45,9 @@ async def panel_campaign_detail(
 
     # Required calls — panel can't render without these
     try:
-        camp_data, ag_data, skel = await asyncio.gather(
+        camp_data, ag_data = await asyncio.gather(
             api.get_campaign(ctx, acc, int(campaign_id)),
             api.get_ad_groups(ctx, acc, int(campaign_id)),
-            ctx.skeleton.get(SECTION),
         )
     except Exception as exc:
         return ui.Stack([
@@ -72,6 +71,6 @@ async def panel_campaign_detail(
     ad_groups = ag_data.get("ad_groups", [])
 
     return _build_detail_view(
-        camp_data, ad_groups, skel or {}, acc, campaign_id,
+        camp_data, ad_groups, {}, acc, campaign_id,
         report_data or {}, report_range, active_tab,
     )

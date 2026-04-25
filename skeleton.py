@@ -92,15 +92,27 @@ async def skeleton_refresh(ctx, **kwargs) -> dict:
     description="Proactive alert: notify user if any campaign budget is critically low.",
 )
 async def skeleton_alert(ctx, **kwargs) -> dict:
-    data = await ctx.skeleton.get(SECTION) or {}
-    if not data.get("connected"):
-        return {"response": {}}
+    # ctx.skeleton not accessible from @ext.tool (SDK v1.6.0) — fetch live instead
+    acc = await _active_account(ctx)
+    if not acc or not acc.get("customer_id") or acc.get("_needs_setup"):
+        return {"response": {"alerts_sent": 0}}
 
-    critical = [a for a in data.get("alerts", []) if a["type"] == "budget_critical"]
+    try:
+        camps_data = await api.get_campaigns(ctx, acc)
+    except Exception:
+        return {"response": {"alerts_sent": 0}}
+
+    critical = []
+    for c in camps_data.get("campaigns", []):
+        budget = float(c.get("daily_budget", c.get("budget_amount", 0)) or 0)
+        spend  = float(c.get("today_spend", c.get("spend", 0)) or 0)
+        if budget > 0 and spend / budget * 100 >= 90:
+            critical.append(c.get("name", ""))
+
     if not critical:
         return {"response": {"alerts_sent": 0}}
 
-    names = ", ".join(a["campaign_name"] for a in critical)
+    names = ", ".join(critical)
     await ctx.notify(
         f"Budget alert: {len(critical)} campaign(s) nearly depleted — {names}",
         priority="high",
