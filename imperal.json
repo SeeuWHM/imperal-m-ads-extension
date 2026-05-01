@@ -1,6 +1,6 @@
 {
   "app_id": "microsoft-ads",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "capabilities": ["store:read", "store:write", "notify:push", "ai:complete"],
   "tools": [
     {
@@ -16,17 +16,13 @@
       "name": "skeleton_refresh_msads",
       "description": "Background refresh: today's Microsoft Ads metrics, campaign list, budget alerts.",
       "scopes": [],
-      "parameters": {
-        "kwargs": {"type": "string", "required": true}
-      }
+      "parameters": {}
     },
     {
       "name": "skeleton_alert_msads",
       "description": "Proactive alert: notify user if any campaign budget is critically low.",
       "scopes": [],
-      "parameters": {
-        "kwargs": {"type": "string", "required": true}
-      }
+      "parameters": {}
     },
     {
       "name": "__panel__account_dashboard",

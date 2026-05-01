@@ -3,16 +3,14 @@ from __future__ import annotations
 
 from imperal_sdk import ui
 
-from app import ext
+from app import ext, MsadsDashboard
 from msads_providers.helpers import _all_accounts, COLLECTION
 from msads_providers.msads_client import list_customers_for_token
 from panels_ui import (
     campaign_badge, fmt_currency, fmt_pct, fmt_number,
     not_connected_view, error_view,
 )
-from skeleton import skeleton_refresh
-
-SECTION = "msads_account"
+from skeleton import _get_dashboard_data
 
 
 @ext.panel("account_dashboard", slot="left", title="Microsoft Ads", icon="TrendingUp")
@@ -66,8 +64,9 @@ async def panel_account_dashboard(
                               on_click=ui.Call("__panel__account_dashboard")),
                 ])
 
-    # ── Connection state check ────────────────────────────────────────── #
-    data = {}
+    # ── Connection state check — try cache first ─────────────────────── #
+    _cached = await ctx.cache.get("dashboard", model=MsadsDashboard)
+    data = _cached.model_dump() if _cached else {}
 
     if not data.get("connected"):
         accounts = await _all_accounts(ctx)
@@ -155,12 +154,17 @@ async def panel_account_dashboard(
                 ),
             ])
 
-        # Account set up but skeleton missing — force-refresh skeleton now
+        # Account ready but dashboard cache is empty — fetch live
         ready = next((a for a in accounts if a.get("customer_id") and not a.get("_needs_setup")), None)
         if ready:
             try:
-                fresh = await skeleton_refresh(ctx)
-                data = (fresh or {}).get("response", {})
+                _fetched = await ctx.cache.get_or_fetch(
+                    "dashboard",
+                    model=MsadsDashboard,
+                    ttl_seconds=300,
+                    fetcher=lambda: _get_dashboard_data(ctx),
+                )
+                data = _fetched.model_dump() if _fetched else {}
             except Exception:
                 data = {}
             if data.get("connected"):

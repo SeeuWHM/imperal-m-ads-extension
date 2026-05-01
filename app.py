@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
+from pydantic import BaseModel
 from imperal_sdk import Extension, Context
 from imperal_sdk.chat import ChatExtension, ActionResult
 
@@ -27,9 +28,25 @@ SYSTEM_PROMPT = (Path(__file__).parent / "system_prompt.txt").read_text()
 
 ext = Extension(
     "microsoft-ads",
-    version="1.1.0",
+    version="1.2.0",
     capabilities=["store:read", "store:write", "notify:push", "ai:complete"],
 )
+
+# ─── Dashboard cache model (panel-side runtime state) ─────────────────── #
+
+@ext.cache_model("msads_dashboard")
+class MsadsDashboard(BaseModel):
+    connected: bool = False
+    account_name: str = ""
+    account_id: str = ""
+    currency: str = "USD"
+    today: dict[str, Any] = {}
+    campaigns: list[dict[str, Any]] = []
+    campaigns_active: int = 0
+    campaigns_paused: int = 0
+    alerts: list[dict[str, Any]] = []
+    error: Optional[str] = None
+
 
 chat = ChatExtension(
     ext=ext,
@@ -43,7 +60,6 @@ chat = ChatExtension(
         "delete campaigns, AI performance analysis."
     ),
     system_prompt=SYSTEM_PROMPT,
-    model="claude-haiku-4-5-20251001",
 )
 
 # ─── Shared error helpers ─────────────────────────────────────────────── #

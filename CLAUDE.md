@@ -96,8 +96,12 @@ DATE_OPTS = [
 
 ### Left panel — `panels.py`
 
-Panel receives data from `ctx.skeleton.get("msads_account")`. Read `skeleton.py` to see
-exactly what's returned. Key fields:
+Panel receives data from **`ctx.cache.get("dashboard", model=MsadsDashboard)`** (v1.2.0+).
+On cache miss → `ctx.cache.get_or_fetch("dashboard", fetcher=_get_dashboard_data)`.
+The cache is populated by `skeleton_refresh_msads` every 300s and on any panel cold-start.
+Read `skeleton.py` (`_get_dashboard_data`) and `app.py` (`MsadsDashboard`) for the full model.
+
+Key fields (`data = cached.model_dump()`):
 
 ```python
 # Account
@@ -154,8 +158,8 @@ data["alerts"]              # list:
 | `needs_setup` (1 account auto-selected) | `_needs_setup=True`, 1 customer found | Success message + refresh button |
 | `needs_setup` (multi-account) | `_needs_setup=True`, multiple customers | Account picker list |
 | `no_customers` | `_needs_setup=True`, 0 customers | Warning + "Try different account" |
-| `loading_error` | Account set up but skeleton empty | Warning + retry button |
-| `dashboard` | Skeleton loaded | Full dashboard |
+| `loading_error` | Account set up, cache empty, live fetch also failed | Warning + retry button |
+| `dashboard` | Cache hit (`ctx.cache`) or live fetch succeeded | Full dashboard |
 | `disconnect="1"` param | User clicked disconnect | Delete all accounts → show not_connected |
 
 ### Right panel — `panels_campaign.py` (router) + `panels_campaign_detail.py` (detail)
@@ -208,10 +212,9 @@ ad_groups                    # list:
 # In that case panels_campaign_detail.py shows budget chart only — period KPIs hidden.
 # The code handles this gracefully — do NOT add error states for empty report_data.
 
-# From skeleton (matched by campaign_id to campaigns list)
-# ⚠️ today_spend from skeleton campaigns is still always 0 (campaigns list has no
-# per-campaign spend data). today_spend in panels_campaign_detail.py comes from skeleton
-# and will show 0. The period spend in Overview tab comes from report_data (real data).
+# ⚠️ today_spend from cache campaigns is still always 0 (campaigns list has no
+# per-campaign spend data). today_spend in panels_campaign_detail.py will show 0.
+# The period spend in Overview tab comes from report_data (real data from CampaignPerformanceReport).
 ```
 
 **Panel states:**

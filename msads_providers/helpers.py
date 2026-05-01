@@ -69,7 +69,7 @@ def _oauth_state(ctx: Context) -> str:
     Auth Gateway decodes this in the /v1/oauth/microsoft-ads/callback handler.
     """
     payload = {
-        "user_id":   str(ctx.user.id),
+        "user_id":   str(ctx.user.imperal_id),
         "tenant_id": getattr(ctx.user, "tenant_id", "default"),
         "provider":  "microsoft-ads",
     }

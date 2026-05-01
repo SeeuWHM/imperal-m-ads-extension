@@ -4,6 +4,7 @@ Functions: get_performance, get_search_terms, get_budget_status, analyze_perform
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import date, timedelta
 from typing import Literal, Optional
 
@@ -55,11 +56,15 @@ class SearchTermsParams(BaseModel):
 
 class AnalyzeParams(BaseModel):
     """AI-powered performance analysis with recommendations."""
-    date_from: str = Field(default="", description="Start date YYYY-MM-DD (default: 7 days ago)")
-    date_to:   str = Field(default="", description="End date YYYY-MM-DD (default: today)")
-    focus:     Literal["general", "keywords", "budget", "ctr", "conversions"] = Field(
+    date_from:   str            = Field(default="", description="Start date YYYY-MM-DD (default: 7 days ago)")
+    date_to:     str            = Field(default="", description="End date YYYY-MM-DD (default: today)")
+    focus:       Literal["general", "keywords", "budget", "ctr", "conversions"] = Field(
         default="general",
         description="Analysis focus area",
+    )
+    campaign_id: Optional[str] = Field(
+        default=None,
+        description="Filter analysis to a specific campaign ID (default: account-wide)",
     )
 
 
@@ -160,7 +165,6 @@ async def fn_get_budget_status(ctx) -> ActionResult:
         return err
 
     today = date.today().isoformat()
-    import asyncio as _asyncio
 
     # Fetch campaign list (required). Fetch today's spend report (optional —
     # CampaignPerformanceReport may fail with Basic Developer Token; we degrade
@@ -237,24 +241,29 @@ async def fn_analyze_performance(ctx, params: AnalyzeParams) -> ActionResult:
         return err
 
     start, end = (params.date_from, params.date_to) if params.date_from else _default_date_range()
+    cid = int(params.campaign_id) if params.campaign_id else None
 
     await ctx.progress(10, "Fetching performance data…")
-    try:
-        camp_data = await api.get_report(ctx, acc, "campaign",  start_date=start, end_date=end, aggregation="Summary")
-        kw_data   = await api.get_report(ctx, acc, "keyword",   start_date=start, end_date=end, aggregation="Summary")
-        sq_data   = await api.get_report(ctx, acc, "search-query", start_date=start, end_date=end)
-    except Exception as exc:
-        return ActionResult.error(str(exc)[:200], retryable=True)
+    camp_raw, kw_raw, sq_raw = await asyncio.gather(
+        api.get_report(ctx, acc, "campaign",     start_date=start, end_date=end, aggregation="Summary", campaign_id=cid),
+        api.get_report(ctx, acc, "keyword",      start_date=start, end_date=end, aggregation="Summary", campaign_id=cid),
+        api.get_report(ctx, acc, "search-query", start_date=start, end_date=end, campaign_id=cid),
+        return_exceptions=True,
+    )
+
+    if all(isinstance(r, Exception) for r in (camp_raw, kw_raw, sq_raw)):
+        return ActionResult.error(str(camp_raw)[:200], retryable=True)
 
     await ctx.progress(60, "Running AI analysis…")
 
-    camp_rows = camp_data.get("rows", camp_data.get("data", []))
-    kw_rows   = kw_data.get("rows", kw_data.get("data", []))
-    sq_rows   = sq_data.get("rows", sq_data.get("data", []))[:30]  # top 30 search terms
+    camp_rows = [] if isinstance(camp_raw, Exception) else camp_raw.get("rows", camp_raw.get("data", []))
+    kw_rows   = [] if isinstance(kw_raw,   Exception) else kw_raw.get("rows",   kw_raw.get("data",   []))
+    sq_rows   = ([] if isinstance(sq_raw,  Exception) else sq_raw.get("rows",   sq_raw.get("data",   [])))[:30]
 
+    scope_note = f" for campaign {params.campaign_id}" if params.campaign_id else " (account-wide)"
     prompt = (
         f"Analyse this Microsoft Advertising account performance "
-        f"from {start} to {end}. Focus: {params.focus}.\n\n"
+        f"from {start} to {end}{scope_note}. Focus: {params.focus}.\n\n"
         f"CAMPAIGN DATA (summary):\n{camp_rows!r:.3000}\n\n"
         f"KEYWORD DATA (top by spend):\n{kw_rows!r:.2000}\n\n"
         f"SEARCH TERMS SAMPLE:\n{sq_rows!r:.1500}\n\n"
@@ -266,16 +275,17 @@ async def fn_analyze_performance(ctx, params: AnalyzeParams) -> ActionResult:
         "5. Budget reallocation suggestion if any campaign is limited\n\n"
         "Be specific. Use actual numbers from the data."
     )
-    analysis = await ctx.ai.complete(prompt=prompt, model="claude-sonnet-4-6")
+    analysis = await ctx.ai.complete(prompt=prompt, model="claude-sonnet")
 
     await ctx.progress(100, "Analysis complete.")
     return ActionResult.success(
         data={
-            "analysis":  analysis.text,
-            "date_from": start,
-            "date_to":   end,
-            "focus":     params.focus,
-            "campaigns": camp_rows,
+            "analysis":    analysis.text,
+            "date_from":   start,
+            "date_to":     end,
+            "focus":       params.focus,
+            "campaign_id": params.campaign_id,
+            "campaigns":   camp_rows,
         },
         summary=f"AI analysis complete for {start} – {end}.",
     )

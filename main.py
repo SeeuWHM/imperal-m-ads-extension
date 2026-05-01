@@ -1,4 +1,4 @@
-"""Microsoft Ads Extension v1.1.0 · Microsoft Advertising AI management."""
+"""Microsoft Ads Extension v1.2.0 · Microsoft Advertising AI management."""
 from __future__ import annotations
 
 import sys
@@ -7,13 +7,14 @@ import os
 # ─── Module isolation (mandatory — prevents cross-extension import cache) #
 _dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _dir)
-for _m in [k for k in sys.modules if k in (
-    "app", "handlers", "handlers_campaigns", "handlers_ads",
-    "handlers_keywords", "handlers_reports", "handlers_negative_keywords",
-    "skeleton", "panels", "panels_campaign", "panels_campaign_create",
-    "panels_campaign_detail", "panels_ui",
-    "msads_providers", "providers",
-)]:
+for _m in [k for k in sys.modules
+           if k in (
+               "app", "handlers", "handlers_campaigns", "handlers_ads",
+               "handlers_keywords", "handlers_reports", "handlers_negative_keywords",
+               "skeleton", "panels", "panels_campaign", "panels_campaign_create",
+               "panels_campaign_detail", "panels_ui",
+           )
+           or k == "msads_providers" or k.startswith("msads_providers.")]:
     del sys.modules[_m]
 
 # ─── Extension entry points ───────────────────────────────────────────── #
