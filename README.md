@@ -38,7 +38,7 @@ right panel shows campaign detail, ad groups, and today's performance.
 | Function | Description |
 |----------|-------------|
 | `connect` | OAuth2 via Microsoft Azure (Azure App `c885090c`) |
-| `status` | Current account info + today's KPIs from skeleton |
+| `status` | Current account info + today's KPIs (from cache or live fetch) |
 | `setup_account` | Post-OAuth: discover and activate an ad account |
 | `switch_account` | Switch between multiple connected accounts |
 | `disconnect` | Remove account credentials from store |
@@ -159,8 +159,10 @@ imperal-m-ads-extension/
 ├── handlers_reports.py              # performance, search terms, budget status, AI analysis
 ├── skeleton.py                      # @ext.skeleton("msads") + skeleton_alert_msads; _get_dashboard_data() shared helper
 ├── panels.py                        # Left panel: account dashboard (all states)
-├── panels_campaign.py               # Right panel: campaign detail + ad groups tabs
-├── panels_ui.py                     # Shared helpers: formatters, badges, OAuth URL builder
+├── panels_campaign.py               # Right panel: router (mode: detail / create / create_ag)
+├── panels_campaign_create.py        # Create campaign form (ui.Form)
+├── panels_campaign_detail.py        # Campaign detail: Overview tab + Ad Groups tab
+├── panels_ui.py                     # Shared helpers: formatters, badges, OAuth URL builder, date helpers
 ├── system_prompt.txt                # LLM system prompt
 ├── imperal.json                     # Extension manifest v1.2.0
 └── msads_providers/

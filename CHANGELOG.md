@@ -22,6 +22,16 @@
 
 ---
 
+## [1.1.1] — 2026-04-25
+
+### Fixed
+
+- **`fn_status`** — removed `ctx.skeleton.get()` call which raises `SkeletonAccessForbidden` in SDK v1.6.0 inside `@chat.function` context. `today` stats now return `{}` gracefully; accounts list unaffected.
+- **`skeleton_alert_msads`** — replaced `ctx.skeleton.get()` with `ctx.cache.get("dashboard")` (SDK v1.6.0: `ctx.skeleton` forbidden outside `@ext.skeleton` tools).
+- **`panels.py`, `panels_campaign.py`** — removed `ctx.skeleton.get()` from `@ext.panel` handlers. Panel data path now uses `ctx.cache.get_or_fetch()` exclusively.
+
+---
+
 ## [1.1.0] — 2026-04-22
 
 ### Fixed

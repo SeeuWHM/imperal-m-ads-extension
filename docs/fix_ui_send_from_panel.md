@@ -1,6 +1,8 @@
 # Bug Report: `ui.Send` from panel buttons does not trigger chat
 
-**SDK:** `1.6.2` | **Extension:** `microsoft-ads` | **Branch:** `ui/campaign-detail-split`
+> **Status: WORKED AROUND** — All affected buttons replaced with `ui.Call` in v1.1.0. Platform fix still pending.
+
+**SDK:** `1.6.2` (reported) | **Extension:** `microsoft-ads` | **Branch:** `ui/campaign-detail-split`
 
 ---
 

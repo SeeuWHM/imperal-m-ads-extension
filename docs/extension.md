@@ -1,10 +1,10 @@
 # Microsoft Ads Extension — Full Documentation
 
-**Version:** 1.1.0 → 1.2.0 (pending deploy) | **Status:** Backend complete, frontend in design
+**Version:** 1.2.0 | **Status:** Backend complete, frontend in design
 **Extension ID:** `microsoft-ads` | **Tool:** `tool_msads_chat`
 **Production:** `/opt/extensions/microsoft-ads/` on `whm-ai-worker`
 **Git:** `github.com/SeeuWHM/imperal-m-ads-extension` | **SSH alias:** `github-m-ads`
-**Latest commit:** `611052b` (local changes ahead, not yet pushed)
+**Latest commit:** `7142b97` (2026-05-01)
 
 ---
 
@@ -40,9 +40,8 @@ microsoft-ads/
 │   ├── extension.md                 # This file — full technical docs
 │   └── frontend.md                  # Frontend status (designer maintains)
 ├── main.py                          # Entry point + sys.modules isolation (all modules listed)
-├── app.py                           # Extension v1.1.0 + ChatExtension(haiku) + error helpers
-│                                    # + MsadsDashboard (Pydantic cache model for panels)
-│                                    # + @ext.cache_model("msads_dashboard")
+├── app.py                           # Extension v1.2.0 + ChatExtension + error helpers
+│                                    # + MsadsDashboard (Pydantic cache model, @ext.cache_model)
 ├── handlers.py                      # connect, status, setup_account, switch_account, disconnect
 ├── handlers_campaigns.py            # list/get/create/update/pause/resume/delete campaign
 ├── handlers_ads.py                  # list/create/update ad_group, list/create/update ad
@@ -58,7 +57,7 @@ microsoft-ads/
 ├── panels_campaign_detail.py        # Campaign detail: overview tab + ad groups tab
 ├── panels_ui.py                     # Shared helpers: formatters, OAuth URL, badges, date helpers
 ├── system_prompt.txt                # LLM system prompt
-├── imperal.json                     # Manifest v1.1.0
+├── imperal.json                     # Manifest v1.2.0
 └── msads_providers/
     ├── __init__.py
     ├── helpers.py                   # OAuth constants, _oauth_state, _all_accounts,
@@ -170,14 +169,14 @@ microsoft-ads/
 
 | Tool registered as | SDK decorator | Section | TTL | Returns |
 |-------------------|--------------|---------|-----|---------|
-| `skeleton_refresh_msads` | `@ext.skeleton("msads")` | `msads` | 300s | `ActionResult.success(data=MsadsDashboard.model_dump())` |
+| `skeleton_refresh_msads` | `@ext.skeleton("msads")` | `msads` | 300s | `{"response": {connected, account_name, campaigns_active, campaigns_paused, alerts_count, today_spend, currency, error}}` |
 | `skeleton_alert_msads` | `@ext.tool` | — | — | push notify if `budget_critical` (≥90%) |
 
 **Data flow (`skeleton.py`):**
 1. Kernel calls `skeleton_refresh_msads` on TTL schedule
 2. `_get_dashboard_data(ctx)` → fetches `summary` report + `get_campaigns` from microservice
-3. Returns `ActionResult.success(data=...)` — kernel persists to Redis as `msads` section (LLM classifier)
-4. **Side-effect:** writes `MsadsDashboard` to `ctx.cache["dashboard"]` (TTL 300s) for panel use
+3. Returns `{"response": {scalar fields}}` — kernel persists to Redis as `msads` section for LLM classifier. Scalars only: connection state, account name, campaign counts, alert count, today's total spend.
+4. **Side-effect:** writes full `MsadsDashboard` to `ctx.cache["dashboard"]` (TTL 300s) for panel use
 
 **`_get_dashboard_data(ctx) -> MsadsDashboard`** — standalone helper in `skeleton.py`, imported by `panels.py` for cache-miss fallback:
 - Fetches: `api.get_report(summary, today, aggregation=Summary)` + `api.get_campaigns()`
@@ -186,16 +185,18 @@ microsoft-ads/
 
 **Panel cache model (`app.py`):**
 ```python
-class MsadsDashboard(BaseModel):
-    connected: bool; account_name: str; account_id: str; currency: str
-    today: dict        # spend, clicks, impressions, ctr, avg_cpc, conversions
-    campaigns: list    # top 10 from get_campaigns (no per-campaign spend)
-    campaigns_active: int; campaigns_paused: int
-    alerts: list       # budget_critical (≥90%) + budget_warning (≥70%)
-    error: Optional[str]  # set on fetch failure, None on success
-
 @ext.cache_model("msads_dashboard")
-class _MsadsDashboardCache(MsadsDashboard): pass
+class MsadsDashboard(BaseModel):
+    connected: bool          # False = no active account or not set up
+    account_name: str        # "Web Host Most, LLC"
+    account_id: str          # "187176890"
+    currency: str            # "USD"
+    today: dict              # spend, clicks, impressions, ctr, avg_cpc, conversions (account-level)
+    campaigns: list          # top 10 from get_campaigns — metadata only (no per-campaign spend)
+    campaigns_active: int
+    campaigns_paused: int
+    alerts: list             # budget_critical (≥90%) + budget_warning (≥70%)
+    error: Optional[str]     # set on fetch failure, None on success
 ```
 
 **`skeleton_alert_msads`** reads `ctx.cache["dashboard"]` — no additional API calls.
@@ -298,11 +299,10 @@ Multi-tenant via headers: `X-Ms-Access-Token` + `X-Ms-Customer-Id` + `X-Ms-Accou
 **Only via Developer Portal** (git → deploy). Never via MCP write_file.
 
 ```bash
-# SeeU's push flow (local .git broken by Nextcloud sync):
-cp -r <files> /tmp/ms-ads-push/
-cd /tmp/ms-ads-push
-git add -A && git commit -m "..."
-git push origin main
+# From /Imperal-Extensions-MCP/SeeU-Extensions/microsoft-ads/
+git add <files>
+git commit -m "..."
+git push origin main   # SSH alias: github-m-ads
 
 # Developer Portal: Deploy tab → select latest commit
 # Then: imperal-platform-worker@{1..3} restart needed for new code
@@ -339,13 +339,12 @@ git push origin main
 ```python
 {
     "status":             "ok" | "degraded",
-    "version":            "1.1.0",
+    "version":            "1.2.0",
     "accounts_connected": int,
     "oauth_configured":   bool,
     "microservice":       "ok" | "degraded" | "unreachable",
 }
 ```
-**Known warning:** `'list' object has no attribute 'data'` in skeleton_store health check — kernel-level bug, not extension code. Does not affect functionality.
 
 ---
 
@@ -365,41 +364,4 @@ git push origin main
 
 ---
 
-## Changelog
-
-### v1.2.0 (2026-04-27) — pending deploy
-
-**Microservice fixes (live in whm-microsoft-ads-control, deployed 2026-04-27):**
-- Fix: `list_keywords` / `list_ads` → HTTP 500 — added try/except to `keywords/router.py` and `ads/router.py`; SOAP faults now return 502 with descriptive error instead of unhandled 500
-- Fix: `analyze_performance` → 502 SOAP fault — `get_campaign_performance` and `get_keyword_performance` now strip `TimePeriod` column when `aggregation="Summary"` (same fix `get_account_performance` already had). `get_search_query_performance` also fixed proactively.
-- Fix: Report scope multi-tenant bug — `_build_account_scope()` and `_build_ad_group_scope()` now use `self._authorization_data.account_id` instead of hardcoded `settings.microsoft_account_id`. Reports will query the correct user's account once Universal Developer Token is active.
-
-**Extension fixes (local, awaiting push → deploy):**
-- Arch: `skeleton.py` — migrated from `@ext.tool("skeleton_refresh_msads")` to `@ext.skeleton("msads", ttl=300, alert=True)`. Returns `ActionResult.success(data=...)`. Adds `_get_dashboard_data(ctx) -> MsadsDashboard` shared helper.
-- Arch: `app.py` — added `MsadsDashboard` Pydantic model + `@ext.cache_model("msads_dashboard")`. Cache is the panel-side data source.
-- Arch: `skeleton.py` — `skeleton_refresh` writes `MsadsDashboard` to `ctx.cache["dashboard"]` (300s TTL) after fetching. `skeleton_alert_msads` reads from `ctx.cache` — no extra API call.
-- Perf: `panels.py` — replaced direct `skeleton_refresh(ctx)` call with `ctx.cache.get("dashboard")` + `ctx.cache.get_or_fetch()` fallback. Panel renders instantly from cache; only fetches live on cold start or cache miss.
-- Feature: `handlers_reports.py` / `AnalyzeParams` — added optional `campaign_id` field to scope analysis to a single campaign.
-- Perf: `handlers_reports.py` / `fn_analyze_performance` — 3 report fetches now run concurrently via `asyncio.gather(return_exceptions=True)`. Partial report failures degrade gracefully (analysis proceeds with available data). Previously a single failure aborted all analysis.
-- Cleanup: `handlers_reports.py` — removed dead `import asyncio as _asyncio` inside `get_budget_status` function body.
-
-### v1.1.1 (2026-04-25)
-- Fix: `fn_status` — removed `ctx.skeleton.get()` call (`SkeletonAccessForbidden` in SDK v1.6.0); `today` stats return empty dict, accounts list unaffected
-- Fix: `skeleton_alert_msads` — replaced `ctx.skeleton.get()` with live `api.get_campaigns()` call (SDK v1.6.0 compliance)
-- Fix: `panels.py`, `panels_campaign.py` — removed `ctx.skeleton.get()` from `@ext.panel` context; fallback path via `skeleton_refresh()` already handles missing skeleton data
-
-### v1.1.0 (2026-04-23)
-- Fixed: `fn_get_budget_status` — replaced non-existent `/v1/reports/budget` with parallel campaign fetch
-- Fixed: `create_campaign/ad_group/ad` — ID extraction from nested `{"campaign": {...}}` response
-- Fixed: `panels_campaign` — ad groups tab was always empty (missing parallel `get_ad_groups` call)
-- Fixed: Account activation — `is_active: True` now set on all 3 activation paths
-- Fixed: `AccountParams.account` — added `default=""` to prevent ValidationError on disconnect
-- Fixed: `get_report` — `campaign_id` → `campaign_ids` (comma-sep string) for campaign report endpoint
-- Fixed: `research_keywords` + `get_bid_estimates` — `location` string → `location_ids` list via mapping
-- Fixed: `add_keywords` — `keyword_ids` extracted from `result["keywords"]`
-- Fixed: `fn_get_campaign` — removed double-nesting in ActionResult data
-- Fixed: `create_ad/update_ad` — headlines/descriptions converted to HeadlineAsset dicts, `final_url` → `final_urls` list, `ad_group_id` moved to query param
-- New: `pause_keyword`, `resume_keyword`, `delete_keyword`
-- New: `delete_campaign`
-- New: `list_negative_keywords`, `add_negative_keywords`, `remove_negative_keywords`
-- New: `handlers_negative_keywords.py` module
+> See [CHANGELOG.md](../CHANGELOG.md) for full version history.
