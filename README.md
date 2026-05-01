@@ -1,7 +1,7 @@
 # imperal-m-ads-extension
 
-[![Imperal SDK](https://img.shields.io/badge/imperal--sdk-1.5.0-blue)](https://pypi.org/project/imperal-sdk/)
-[![Version](https://img.shields.io/badge/version-1.1.0-green)](https://github.com/SeeuWHM/imperal-m-ads-extension/releases)
+[![Imperal SDK](https://img.shields.io/badge/imperal--sdk-3.5.x-blue)](https://pypi.org/project/imperal-sdk/)
+[![Version](https://img.shields.io/badge/version-1.2.0-green)](https://github.com/SeeuWHM/imperal-m-ads-extension/releases)
 [![Platform](https://img.shields.io/badge/platform-Imperal%20Cloud-purple)](https://panel.imperal.io)
 
 **Microsoft Advertising AI manager extension for [Imperal Cloud](https://panel.imperal.io).**
@@ -87,7 +87,7 @@ right panel shows campaign detail, ad groups, and today's performance.
 | `get_performance` | Campaign / ad-group / keyword / summary, any date range |
 | `get_search_terms` | Actual search queries triggering your ads |
 | `get_budget_status` | Today's spend vs budget for all campaigns |
-| `analyze_performance` | AI insights via `ctx.ai` — trends, recommendations |
+| `analyze_performance` | AI insights via `ctx.ai` — trends, recommendations (optional: `campaign_id` for per-campaign scope) |
 
 ---
 
@@ -157,12 +157,12 @@ imperal-m-ads-extension/
 ├── handlers_keywords.py             # list/add/pause/resume/delete keywords, research, bid estimates
 ├── handlers_negative_keywords.py    # list/add/remove negative keywords
 ├── handlers_reports.py              # performance, search terms, budget status, AI analysis
-├── skeleton.py                      # skeleton_refresh_msads + skeleton_alert_msads
+├── skeleton.py                      # @ext.skeleton("msads") + skeleton_alert_msads; _get_dashboard_data() shared helper
 ├── panels.py                        # Left panel: account dashboard (all states)
 ├── panels_campaign.py               # Right panel: campaign detail + ad groups tabs
 ├── panels_ui.py                     # Shared helpers: formatters, badges, OAuth URL builder
 ├── system_prompt.txt                # LLM system prompt
-├── imperal.json                     # Extension manifest v1.1.0
+├── imperal.json                     # Extension manifest v1.2.0
 └── msads_providers/
     ├── __init__.py
     ├── helpers.py                   # OAuth constants, account helpers, location ID mapping
@@ -177,11 +177,14 @@ imperal-m-ads-extension/
 
 | Tool | TTL | Returns |
 |------|-----|---------|
-| `skeleton_refresh_msads` | 300s | Account info + today's account-level KPIs + campaign list (top 10) + budget alerts |
+| `skeleton_refresh_msads` | 300s | Scalar summary for AI classifier: `connected`, `account_name`, `campaigns_active/paused`, `alerts_count`, `today_spend` |
 | `skeleton_alert_msads` | — | `notify()` when any campaign budget ≥ 90% spent |
 
-**Note:** Campaign list in skeleton contains campaign metadata (name, status, budget) only.
-Per-campaign today spend/clicks are NOT included — those require a separate report call.
+`skeleton_refresh` also writes full `MsadsDashboard` to `ctx.cache("dashboard")` for panels.
+Panels use cache-aside: hit → instant render; miss → `_get_dashboard_data()` live fetch.
+
+**Note:** Campaign list in skeleton/cache contains metadata only (name, status, budget).
+Per-campaign today spend/clicks require a separate `get_budget_status` call.
 
 ---
 
@@ -199,6 +202,6 @@ Per-campaign today spend/clicks are NOT included — those require a separate re
 
 ## Built with
 
-- [imperal-sdk](https://github.com/imperalcloud/imperal-sdk) 1.5.0
+- [imperal-sdk](https://github.com/imperalcloud/imperal-sdk) 3.5.x
 - [Imperal Cloud](https://panel.imperal.io)
 - Microsoft Advertising API v13 via [BingAds Python SDK](https://github.com/BingAds/BingAds-Python-SDK)
